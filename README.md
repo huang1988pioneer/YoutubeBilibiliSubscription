@@ -53,7 +53,14 @@ Token：`%LocalAppData%\YoutubeSubscription\Google.Apis.Auth\`
 2. 点 **扫码登录**
 3. 用哔哩哔哩 App 扫描，手机确认
 
-**方式 B：Cookie**
+**方式 B：导入 cookies.txt**
+
+1. 浏览器登录 [bilibili.com](https://www.bilibili.com)
+2. 用扩展（如 *Get cookies.txt LOCALLY*）导出 Netscape 格式 `cookies.txt`
+3. 程式内点 **导入 cookies.txt** / **选择 cookies.txt 并登录**
+4. 选择文件后自动读取 `SESSDATA`、`bili_jct`（及 `DedeUserID`、`buvid3`）
+
+**方式 C：手动 Cookie**
 
 1. 浏览器登录 [bilibili.com](https://www.bilibili.com)
 2. F12 → Application → Cookies → `bilibili.com`

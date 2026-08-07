@@ -12,7 +12,8 @@ namespace YoutubeSubscription.ViewModels;
 
 public partial class BilibiliViewModel : ViewModelBase, IDisposable
 {
-    private readonly BilibiliApiClient _api = new();
+    private readonly BilibiliApiClient _api;
+    private readonly FileDialogService _fileDialogs;
     private CancellationTokenSource? _qrCts;
     private CancellationTokenSource? _loadCts;
 
@@ -21,7 +22,7 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     public partial string StatusMessage { get; set; } =
-        "请使用哔哩哔哩 App 扫码登录，或手动填入 Cookie（SESSDATA + bili_jct）。";
+        "请使用哔哩哔哩 App 扫码登录，或导入 cookies.txt / 手动填入 Cookie。";
 
     [ObservableProperty]
     public partial string AccountText { get; set; } = "未登录";
@@ -68,8 +69,16 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
     public string TotalCountText => $"关注 UP 总数：{TotalCount}";
     public string SelectedCountText => $"已勾选：{SelectedCount}";
 
-    public BilibiliViewModel()
+    public FileDialogService FileDialogs => _fileDialogs;
+
+    public BilibiliViewModel() : this(new BilibiliApiClient(), new FileDialogService())
     {
+    }
+
+    public BilibiliViewModel(BilibiliApiClient api, FileDialogService fileDialogs)
+    {
+        _api = api;
+        _fileDialogs = fileDialogs;
         Channels.CollectionChanged += OnChannelsCollectionChanged;
         _ = TryRestoreSessionAsync();
     }
@@ -240,6 +249,47 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
         catch (Exception ex)
         {
             StatusMessage = $"Cookie 登录失败：{ex.Message}";
+            IsAuthenticated = false;
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task ImportCookiesTxtAsync()
+    {
+        if (IsBusy)
+            return;
+
+        var path = await _fileDialogs.PickCookiesTxtAsync();
+        if (path is null)
+            return;
+
+        try
+        {
+            IsBusy = true;
+            StatusMessage = "正在导入 cookies.txt…";
+            _api.LoginWithCookiesTxt(path);
+
+            // Prefill manual fields for visibility (masked) so user can re-check if needed.
+            var cred = _api.Credential;
+            if (cred is not null)
+            {
+                ManualSessData = cred.SessData;
+                ManualBiliJct = cred.BiliJct;
+            }
+
+            IsCookiePanelVisible = false;
+            IsQrVisible = false;
+            _qrCts?.Cancel();
+            StatusMessage = "cookies.txt 已导入，正在载入…";
+            await LoadAfterLoginAsync();
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"导入 cookies.txt 失败：{ex.Message}";
             IsAuthenticated = false;
         }
         finally

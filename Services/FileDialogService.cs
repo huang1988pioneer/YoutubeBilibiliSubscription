@@ -40,4 +40,34 @@ public sealed class FileDialogService
 
         return file.TryGetLocalPath();
     }
+
+    public async Task<string?> PickCookiesTxtAsync()
+    {
+        if (Host is null)
+            return null;
+
+        var files = await Host.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        {
+            Title = "选择浏览器导出的 cookies.txt",
+            AllowMultiple = false,
+            FileTypeFilter =
+            [
+                new FilePickerFileType("Cookie 文本")
+                {
+                    Patterns = ["*.txt", "cookies.txt"],
+                    MimeTypes = ["text/plain"],
+                },
+                new FilePickerFileType("所有文件")
+                {
+                    Patterns = ["*.*"],
+                },
+            ],
+        });
+
+        var file = files.FirstOrDefault();
+        if (file is null)
+            return null;
+
+        return file.TryGetLocalPath();
+    }
 }

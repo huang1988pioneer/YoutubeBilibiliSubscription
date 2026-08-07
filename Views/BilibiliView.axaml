@@ -41,6 +41,10 @@
                     <Button Content="Cookie 登录"
                             Command="{Binding ShowCookiePanelCommand}"
                             IsEnabled="{Binding !IsBusy}" />
+                    <Button Content="导入 cookies.txt"
+                            Command="{Binding ImportCookiesTxtCommand}"
+                            IsEnabled="{Binding !IsBusy}"
+                            ToolTip.Tip="从浏览器扩展导出的 Netscape cookies.txt 登录" />
                     <Button Content="重新整理"
                             Command="{Binding RefreshCommand}"
                             IsEnabled="{Binding IsAuthenticated}" />
@@ -196,6 +200,9 @@
                                 Classes="accent" />
                         <Button Content="使用 Cookie"
                                 Command="{Binding ShowCookiePanelCommand}" />
+                        <Button Content="导入 cookies.txt"
+                                Command="{Binding ImportCookiesTxtCommand}"
+                                ToolTip.Tip="从浏览器扩展导出的 Netscape cookies.txt 登录" />
                     </StackPanel>
 
                     <!-- QR -->
@@ -222,9 +229,17 @@
                             CornerRadius="12"
                             Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
                         <StackPanel Spacing="10">
-                            <TextBlock Text="从浏览器 Cookie 复制（登录 bilibili.com 后）"
+                            <TextBlock Text="方式 1：导入浏览器扩展导出的 cookies.txt（推荐）"
                                        Opacity="0.75"
                                        TextWrapping="Wrap" />
+                            <Button Content="选择 cookies.txt 并登录"
+                                    Command="{Binding ImportCookiesTxtCommand}"
+                                    HorizontalAlignment="Left"
+                                    Classes="accent" />
+                            <TextBlock Text="方式 2：手动粘贴 Cookie（登录 bilibili.com 后）"
+                                       Opacity="0.75"
+                                       TextWrapping="Wrap"
+                                       Margin="0,8,0,0" />
                             <TextBox PlaceholderText="SESSDATA"
                                      Text="{Binding ManualSessData}"
                                      PasswordChar="•" />
@@ -235,7 +250,7 @@
                                     Command="{Binding LoginWithCookieCommand}"
                                     HorizontalAlignment="Right"
                                     Classes="accent" />
-                            <TextBlock Text="提示：F12 → Application/应用 → Cookies → bilibili.com"
+                            <TextBlock Text="提示：可用 Get cookies.txt LOCALLY 等扩展导出；或 F12 → Application → Cookies → bilibili.com"
                                        FontSize="11"
                                        Opacity="0.55"
                                        TextWrapping="Wrap" />

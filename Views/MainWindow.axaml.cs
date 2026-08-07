@@ -14,6 +14,9 @@ public partial class MainWindow : Window
     private void OnOpened(object? sender, EventArgs e)
     {
         if (DataContext is ShellViewModel shell)
+        {
             shell.YouTube.FileDialogs.Host = this;
+            shell.Bilibili.FileDialogs.Host = this;
+        }
     }
 }

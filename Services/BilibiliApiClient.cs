@@ -157,20 +157,42 @@ public sealed class BilibiliApiClient : IDisposable
         return (false, friendly, state);
     }
 
-    public void LoginWithManualCookies(string sessData, string biliJct, string? dedeUserId = null)
+    public void LoginWithManualCookies(
+        string sessData,
+        string biliJct,
+        string? dedeUserId = null,
+        string? buvid3 = null)
     {
         var cred = new BilibiliCredential
         {
             SessData = sessData.Trim(),
             BiliJct = biliJct.Trim(),
             DedeUserId = dedeUserId?.Trim() ?? string.Empty,
-            Buvid3 = Guid.NewGuid().ToString("N") + "infoc",
+            Buvid3 = string.IsNullOrWhiteSpace(buvid3)
+                ? Guid.NewGuid().ToString("N") + "infoc"
+                : buvid3.Trim(),
         };
-        if (!BilibiliCredentialStore.IsValid(cred))
+        LoginWithCredential(cred);
+    }
+
+    /// <summary>Apply and persist a full credential (e.g. from cookies.txt import).</summary>
+    public void LoginWithCredential(BilibiliCredential credential)
+    {
+        if (!BilibiliCredentialStore.IsValid(credential))
             throw new ArgumentException("SESSDATA 与 bili_jct 不能为空。");
 
-        ApplyCredential(cred);
-        BilibiliCredentialStore.Save(cred);
+        if (string.IsNullOrWhiteSpace(credential.Buvid3))
+            credential.Buvid3 = Guid.NewGuid().ToString("N") + "infoc";
+
+        ApplyCredential(credential);
+        BilibiliCredentialStore.Save(credential);
+    }
+
+    /// <summary>Import Netscape cookies.txt and login.</summary>
+    public void LoginWithCookiesTxt(string path)
+    {
+        var cred = BilibiliCookieTxtParser.ParseFile(path);
+        LoginWithCredential(cred);
     }
 
     // ---------- Account / followings ----------
