@@ -96,7 +96,7 @@
                     <Button Content="取消全選"
                             Command="{Binding DeselectAllCommand}"
                             IsEnabled="{Binding IsAuthenticated}" />
-                    <Button Content="瀏覽器開啟已勾選"
+                    <Button Content="開啟瀏覽器"
                             Command="{Binding OpenSelectedInBrowserCommand}"
                             IsEnabled="{Binding IsAuthenticated}"
                             ToolTip.Tip="在預設瀏覽器開啟所有已勾選頻道" />

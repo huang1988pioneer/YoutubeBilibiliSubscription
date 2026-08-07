@@ -72,7 +72,7 @@
                     <Button Content="取消全选"
                             Command="{Binding DeselectAllCommand}"
                             IsEnabled="{Binding IsAuthenticated}" />
-                    <Button Content="浏览器打开已勾选"
+                    <Button Content="打开浏览器"
                             Command="{Binding OpenSelectedInBrowserCommand}"
                             IsEnabled="{Binding IsAuthenticated}"
                             ToolTip.Tip="在默认浏览器打开所有已勾选 UP 空间" />
