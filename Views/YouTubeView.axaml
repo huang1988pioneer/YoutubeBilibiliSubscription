@@ -1,0 +1,327 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:YoutubeSubscription.ViewModels"
+        xmlns:models="using:YoutubeSubscription.Models"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="960" d:DesignHeight="640"
+        x:Class="YoutubeSubscription.Views.YouTubeView"
+        x:Name="RootView"
+        x:DataType="vm:MainViewModel">
+
+    <Design.DataContext>
+        <vm:MainViewModel />
+    </Design.DataContext>
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+        <!-- Header -->
+        <Border Grid.Row="0"
+                Padding="16,14"
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="已訂閱"
+                               FontSize="22"
+                               FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding TotalCountText}"
+                               FontSize="14"
+                               Opacity="0.85" />
+                    <TextBlock Text="{Binding SelectedCountText}"
+                               FontSize="12"
+                               Opacity="0.7" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            Spacing="8"
+                            VerticalAlignment="Center">
+                    <Button Content="選擇憑證檔"
+                            Command="{Binding PickClientSecretsCommand}"
+                            IsEnabled="{Binding !IsBusy}"
+                            ToolTip.Tip="選擇從 Google Cloud 下載的 OAuth JSON（client_secrets.json）" />
+                    <Button Content="登入 / 授權"
+                            Command="{Binding LoginCommand}"
+                            IsEnabled="{Binding !IsBusy}"
+                            Classes="accent" />
+                    <Button Content="重新整理"
+                            Command="{Binding RefreshCommand}"
+                            IsEnabled="{Binding IsAuthenticated}" />
+                    <Button Content="登出"
+                            Command="{Binding LogoutCommand}"
+                            IsEnabled="{Binding IsAuthenticated}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Toolbar -->
+        <Border Grid.Row="1" Padding="16,10" BorderThickness="0,0,0,1"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <TextBlock Text="排序"
+                               VerticalAlignment="Center"
+                               Opacity="0.7" />
+                    <ComboBox Width="220"
+                              ItemsSource="{Binding SortOptions}"
+                              SelectedItem="{Binding SelectedSortOption}"
+                              IsEnabled="{Binding IsAuthenticated}"
+                              ToolTip.Tip="對應 YouTube API / youtube.com/feed/channels 排序">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:SortOptionItem">
+                                <TextBlock Text="{Binding Label}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </StackPanel>
+
+                <TextBox Grid.Column="1"
+                         PlaceholderText="搜尋頻道名稱、@handle…"
+                         Text="{Binding FilterText}"
+                         MaxWidth="360"
+                         HorizontalAlignment="Left"
+                         IsEnabled="{Binding IsAuthenticated}" />
+
+                <StackPanel Grid.Column="2"
+                            Orientation="Horizontal"
+                            Spacing="8"
+                            HorizontalAlignment="Right">
+                    <Button Content="全選"
+                            Command="{Binding SelectAllCommand}"
+                            IsEnabled="{Binding IsAuthenticated}"
+                            ToolTip.Tip="全選全部訂閱頻道" />
+                    <Button Content="前33個"
+                            Command="{Binding SelectFirst33Command}"
+                            IsEnabled="{Binding IsAuthenticated}"
+                            ToolTip.Tip="勾選目前列表前 33 個頻道" />
+                    <Button Content="取消全選"
+                            Command="{Binding DeselectAllCommand}"
+                            IsEnabled="{Binding IsAuthenticated}" />
+                    <Button Content="瀏覽器開啟已勾選"
+                            Command="{Binding OpenSelectedInBrowserCommand}"
+                            IsEnabled="{Binding IsAuthenticated}"
+                            ToolTip.Tip="在預設瀏覽器開啟所有已勾選頻道" />
+                    <Button Content="取消訂閱"
+                            Command="{Binding RequestUnsubscribeCommand}"
+                            IsEnabled="{Binding IsAuthenticated}"
+                            Classes="danger"
+                            ToolTip.Tip="取消訂閱已勾選的頻道" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- List (YouTube feed/channels style) -->
+        <Grid Grid.Row="2">
+            <ListBox ItemsSource="{Binding FilteredChannels}"
+                     Background="Transparent"
+                     Margin="4,0">
+                <ListBox.Styles>
+                    <Style Selector="ListBoxItem">
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                        <Setter Property="MinHeight" Value="0" />
+                    </Style>
+                </ListBox.Styles>
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="models:SubscriptionChannel">
+                        <!-- Layout mirrors https://www.youtube.com/feed/channels -->
+                        <Border Padding="20,16"
+                                BorderThickness="0,0,0,1"
+                                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+                            <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="18">
+                                <CheckBox IsChecked="{Binding IsSelected}"
+                                          VerticalAlignment="Center"
+                                          ToolTip.Tip="勾選以取消訂閱" />
+
+                                <!-- Circular channel avatar -->
+                                <Button Grid.Column="1"
+                                        Width="96"
+                                        Height="96"
+                                        Padding="0"
+                                        BorderThickness="0"
+                                        Background="Transparent"
+                                        VerticalAlignment="Center"
+                                        Cursor="Hand"
+                                        Command="{Binding #RootView.((vm:MainViewModel)DataContext).OpenChannelCommand}"
+                                        CommandParameter="{Binding}"
+                                        ToolTip.Tip="在瀏覽器開啟頻道">
+                                    <Border Width="96"
+                                            Height="96"
+                                            CornerRadius="48"
+                                            ClipToBounds="True"
+                                            Background="#E5E5E5">
+                                        <Panel>
+                                            <TextBlock Text="{Binding Title}"
+                                                       FontSize="32"
+                                                       FontWeight="SemiBold"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center"
+                                                       Opacity="0.3" />
+                                            <Image Source="{Binding Thumbnail}"
+                                                   Stretch="UniformToFill"
+                                                   IsVisible="{Binding Thumbnail, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                        </Panel>
+                                    </Border>
+                                </Button>
+
+                                <!-- Title · @handle · subscribers · about (youtube.com/feed/channels) -->
+                                <Button Grid.Column="2"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Left"
+                                        VerticalAlignment="Center"
+                                        Padding="0"
+                                        BorderThickness="0"
+                                        Background="Transparent"
+                                        Cursor="Hand"
+                                        Command="{Binding #RootView.((vm:MainViewModel)DataContext).OpenChannelCommand}"
+                                        CommandParameter="{Binding}">
+                                    <StackPanel Spacing="3">
+                                        <TextBlock Text="{Binding Title}"
+                                                   FontSize="16"
+                                                   FontWeight="SemiBold"
+                                                   TextWrapping="NoWrap"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding MetaLine}"
+                                                   FontSize="13"
+                                                   Opacity="0.62"
+                                                   TextWrapping="NoWrap"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Description}"
+                                                   FontSize="13"
+                                                   Opacity="0.52"
+                                                   MaxLines="2"
+                                                   LineHeight="18"
+                                                   TextWrapping="Wrap"
+                                                   TextTrimming="CharacterEllipsis"
+                                                   Margin="0,2,0,0" />
+                                    </StackPanel>
+                                </Button>
+
+                                <!-- 「已訂閱」 pill like YouTube -->
+                                <Border Grid.Column="3"
+                                        VerticalAlignment="Center"
+                                        CornerRadius="18"
+                                        Padding="16,9"
+                                        MinWidth="88"
+                                        Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}">
+                                    <TextBlock Text="已訂閱"
+                                               FontSize="13"
+                                               HorizontalAlignment="Center"
+                                               Opacity="0.88" />
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <!-- Empty / setup state -->
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        Spacing="12"
+                        MaxWidth="520"
+                        IsVisible="{Binding !IsAuthenticated}"
+                        Margin="24">
+                <TextBlock Text="開始使用"
+                           FontSize="18"
+                           FontWeight="SemiBold"
+                           HorizontalAlignment="Center" />
+                <TextBlock Text="{Binding CredentialsPathText}"
+                           Opacity="0.75"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
+                           HorizontalAlignment="Center" />
+                <TextBlock Text="1. 按「Google Cloud 憑證」建立 OAuth「桌面應用程式」並下載 JSON&#x0a;2. 按「選擇憑證檔」選取該 JSON&#x0a;3. 按「登入 / 授權」載入訂閱"
+                           Opacity="0.65"
+                           TextWrapping="Wrap"
+                           TextAlignment="Center"
+                           LineHeight="22" />
+                <StackPanel Orientation="Horizontal"
+                            HorizontalAlignment="Center"
+                            Spacing="8"
+                            Margin="0,8,0,0">
+                    <Button Content="選擇憑證檔"
+                            Command="{Binding PickClientSecretsCommand}"
+                            IsEnabled="{Binding !IsBusy}" />
+                    <Button Content="登入 / 授權"
+                            Command="{Binding LoginCommand}"
+                            IsEnabled="{Binding !IsBusy}"
+                            Classes="accent" />
+                </StackPanel>
+            </StackPanel>
+
+            <!-- Busy overlay -->
+            <Border IsVisible="{Binding IsBusy}"
+                    Background="#88000000"
+                    ZIndex="10">
+                <StackPanel HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Spacing="12">
+                    <ProgressBar IsIndeterminate="True" Width="220" />
+                    <TextBlock Text="{Binding StatusMessage}"
+                               HorizontalAlignment="Center"
+                               TextWrapping="Wrap"
+                               MaxWidth="400"
+                               TextAlignment="Center" />
+                </StackPanel>
+            </Border>
+
+            <!-- Confirm unsubscribe dialog -->
+            <Border IsVisible="{Binding IsConfirmUnsubscribeVisible}"
+                    Background="#AA000000"
+                    ZIndex="20">
+                <Border Background="{DynamicResource SystemRegionBrush}"
+                        CornerRadius="12"
+                        Padding="24"
+                        MaxWidth="420"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                    <StackPanel Spacing="16">
+                        <TextBlock Text="確認取消訂閱"
+                                   FontSize="18"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding ConfirmMessage}"
+                                   TextWrapping="Wrap"
+                                   LineHeight="22" />
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Right"
+                                    Spacing="8">
+                            <Button Content="返回"
+                                    Command="{Binding CancelConfirmUnsubscribeCommand}" />
+                            <Button Content="確定取消訂閱"
+                                    Command="{Binding ConfirmUnsubscribeCommand}"
+                                    Classes="accent" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Border>
+        </Grid>
+
+        <!-- Status bar -->
+        <Border Grid.Row="3"
+                Padding="16,10"
+                BorderThickness="0,1,0,0"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding StatusMessage}"
+                               TextWrapping="Wrap"
+                               Opacity="0.9" />
+                    <TextBlock Text="{Binding CredentialsPathText}"
+                               FontSize="11"
+                               Opacity="0.55"
+                               TextTrimming="CharacterEllipsis" />
+                </StackPanel>
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            Spacing="8"
+                            VerticalAlignment="Center">
+                    <Button Content="啟用 API"
+                            Command="{Binding OpenApiHelpCommand}"
+                            ToolTip.Tip="開啟 YouTube Data API v3 啟用頁面" />
+                    <Button Content="Google Cloud 憑證"
+                            Command="{Binding OpenCredentialsHelpCommand}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+    </Grid>
+</UserControl>

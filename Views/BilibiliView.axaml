@@ -1,0 +1,303 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:YoutubeSubscription.ViewModels"
+             xmlns:models="using:YoutubeSubscription.Models"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="960" d:DesignHeight="640"
+             x:Class="YoutubeSubscription.Views.BilibiliView"
+             x:Name="Root"
+             x:DataType="vm:BilibiliViewModel">
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+        <!-- Header -->
+        <Border Grid.Row="0"
+                Padding="16,14"
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="B站 关注管理"
+                               FontSize="20"
+                               FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding TotalCountText}"
+                               FontSize="14"
+                               Opacity="0.9" />
+                    <TextBlock Text="{Binding AccountText}"
+                               FontSize="12"
+                               Opacity="0.7" />
+                    <TextBlock Text="{Binding SelectedCountText}"
+                               FontSize="12"
+                               Opacity="0.7" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            Spacing="8"
+                            VerticalAlignment="Center">
+                    <Button Content="扫码登录"
+                            Command="{Binding StartQrLoginCommand}"
+                            IsEnabled="{Binding !IsBusy}"
+                            Classes="accent" />
+                    <Button Content="Cookie 登录"
+                            Command="{Binding ShowCookiePanelCommand}"
+                            IsEnabled="{Binding !IsBusy}" />
+                    <Button Content="重新整理"
+                            Command="{Binding RefreshCommand}"
+                            IsEnabled="{Binding IsAuthenticated}" />
+                    <Button Content="登出"
+                            Command="{Binding LogoutCommand}"
+                            IsEnabled="{Binding IsAuthenticated}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Toolbar -->
+        <Border Grid.Row="1" Padding="16,10" BorderThickness="0,0,0,1"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBox PlaceholderText="搜索 UP 名称、UID…"
+                         Text="{Binding FilterText}"
+                         Width="280"
+                         HorizontalAlignment="Left"
+                         IsEnabled="{Binding IsAuthenticated}" />
+
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <Button Content="全选"
+                            Command="{Binding SelectAllCommand}"
+                            IsEnabled="{Binding IsAuthenticated}" />
+                    <Button Content="前33个"
+                            Command="{Binding SelectFirst33Command}"
+                            IsEnabled="{Binding IsAuthenticated}"
+                            ToolTip.Tip="勾选当前列表前 33 个 UP" />
+                    <Button Content="取消全选"
+                            Command="{Binding DeselectAllCommand}"
+                            IsEnabled="{Binding IsAuthenticated}" />
+                    <Button Content="浏览器打开已勾选"
+                            Command="{Binding OpenSelectedInBrowserCommand}"
+                            IsEnabled="{Binding IsAuthenticated}"
+                            ToolTip.Tip="在默认浏览器打开所有已勾选 UP 空间" />
+                    <Button Content="取消关注"
+                            Command="{Binding RequestUnfollowCommand}"
+                            IsEnabled="{Binding IsAuthenticated}"
+                            Classes="danger"
+                            ToolTip.Tip="取消关注已勾选的 UP" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- List -->
+        <Grid Grid.Row="2">
+            <ListBox ItemsSource="{Binding FilteredChannels}"
+                     Background="Transparent"
+                     Margin="4,0"
+                     IsVisible="{Binding IsAuthenticated}">
+                <ListBox.Styles>
+                    <Style Selector="ListBoxItem">
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    </Style>
+                </ListBox.Styles>
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="models:BilibiliFollowing">
+                        <Border Padding="16,12"
+                                BorderThickness="0,0,0,1"
+                                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+                            <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="14">
+                                <CheckBox IsChecked="{Binding IsSelected}"
+                                          VerticalAlignment="Center" />
+
+                                <Button Grid.Column="1"
+                                        Width="72"
+                                        Height="72"
+                                        Padding="0"
+                                        BorderThickness="0"
+                                        Background="Transparent"
+                                        Command="{Binding #Root.((vm:BilibiliViewModel)DataContext).OpenSpaceCommand}"
+                                        CommandParameter="{Binding}">
+                                    <Border Width="72"
+                                            Height="72"
+                                            CornerRadius="36"
+                                            ClipToBounds="True"
+                                            Background="#E5E5E5">
+                                        <Panel>
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontSize="22"
+                                                       Opacity="0.3"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center" />
+                                            <Image Source="{Binding Face}"
+                                                   Stretch="UniformToFill"
+                                                   IsVisible="{Binding Face, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                        </Panel>
+                                    </Border>
+                                </Button>
+
+                                <Button Grid.Column="2"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Left"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Padding="0"
+                                        Command="{Binding #Root.((vm:BilibiliViewModel)DataContext).OpenSpaceCommand}"
+                                        CommandParameter="{Binding}">
+                                    <StackPanel Spacing="3">
+                                        <TextBlock Text="{Binding Name}"
+                                                   FontSize="15"
+                                                   FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding MetaLine}"
+                                                   FontSize="12"
+                                                   Opacity="0.65"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Sign}"
+                                                   FontSize="12"
+                                                   Opacity="0.5"
+                                                   MaxLines="2"
+                                                   TextWrapping="Wrap"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </Button>
+
+                                <Border Grid.Column="3"
+                                        VerticalAlignment="Center"
+                                        CornerRadius="16"
+                                        Padding="12,8"
+                                        Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}">
+                                    <TextBlock Text="已关注" FontSize="12" Opacity="0.85" />
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <!-- Login panel -->
+            <ScrollViewer IsVisible="{Binding !IsAuthenticated}"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Spacing="14"
+                            MaxWidth="480"
+                            Margin="24">
+                    <TextBlock Text="登录哔哩哔哩"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               HorizontalAlignment="Center" />
+                    <TextBlock Text="登录后可查看关注总数、列表，并勾选取消关注。"
+                               Opacity="0.7"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center" />
+
+                    <StackPanel Orientation="Horizontal"
+                                HorizontalAlignment="Center"
+                                Spacing="8">
+                        <Button Content="扫码登录"
+                                Command="{Binding StartQrLoginCommand}"
+                                Classes="accent" />
+                        <Button Content="使用 Cookie"
+                                Command="{Binding ShowCookiePanelCommand}" />
+                    </StackPanel>
+
+                    <!-- QR -->
+                    <Border IsVisible="{Binding IsQrVisible}"
+                            Padding="16"
+                            CornerRadius="12"
+                            Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
+                            HorizontalAlignment="Center">
+                        <StackPanel Spacing="10" HorizontalAlignment="Center">
+                            <Image Source="{Binding QrImage}"
+                                   Width="220"
+                                   Height="220"
+                                   Stretch="Uniform" />
+                            <TextBlock Text="{Binding QrHint}"
+                                       TextAlignment="Center"
+                                       TextWrapping="Wrap"
+                                       MaxWidth="280" />
+                        </StackPanel>
+                    </Border>
+
+                    <!-- Cookie form -->
+                    <Border IsVisible="{Binding IsCookiePanelVisible}"
+                            Padding="16"
+                            CornerRadius="12"
+                            Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+                        <StackPanel Spacing="10">
+                            <TextBlock Text="从浏览器 Cookie 复制（登录 bilibili.com 后）"
+                                       Opacity="0.75"
+                                       TextWrapping="Wrap" />
+                            <TextBox PlaceholderText="SESSDATA"
+                                     Text="{Binding ManualSessData}"
+                                     PasswordChar="•" />
+                            <TextBox PlaceholderText="bili_jct"
+                                     Text="{Binding ManualBiliJct}"
+                                     PasswordChar="•" />
+                            <Button Content="使用 Cookie 登录"
+                                    Command="{Binding LoginWithCookieCommand}"
+                                    HorizontalAlignment="Right"
+                                    Classes="accent" />
+                            <TextBlock Text="提示：F12 → Application/应用 → Cookies → bilibili.com"
+                                       FontSize="11"
+                                       Opacity="0.55"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Busy -->
+            <Border IsVisible="{Binding IsBusy}"
+                    Background="#88000000"
+                    ZIndex="10">
+                <StackPanel HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Spacing="12">
+                    <ProgressBar IsIndeterminate="True" Width="220" />
+                    <TextBlock Text="{Binding StatusMessage}"
+                               MaxWidth="400"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center" />
+                </StackPanel>
+            </Border>
+
+            <!-- Confirm -->
+            <Border IsVisible="{Binding IsConfirmUnfollowVisible}"
+                    Background="#AA000000"
+                    ZIndex="20">
+                <Border Background="{DynamicResource SystemRegionBrush}"
+                        CornerRadius="12"
+                        Padding="24"
+                        MaxWidth="420"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                    <StackPanel Spacing="16">
+                        <TextBlock Text="确认取消关注"
+                                   FontSize="18"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding ConfirmMessage}"
+                                   TextWrapping="Wrap"
+                                   LineHeight="22" />
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Right"
+                                    Spacing="8">
+                            <Button Content="返回"
+                                    Command="{Binding CancelConfirmUnfollowCommand}" />
+                            <Button Content="确定取消关注"
+                                    Command="{Binding ConfirmUnfollowCommand}"
+                                    Classes="accent" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Border>
+        </Grid>
+
+        <!-- Status -->
+        <Border Grid.Row="3"
+                Padding="16,10"
+                BorderThickness="0,1,0,0"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+            <TextBlock Text="{Binding StatusMessage}"
+                       TextWrapping="Wrap"
+                       Opacity="0.9" />
+        </Border>
+    </Grid>
+</UserControl>
