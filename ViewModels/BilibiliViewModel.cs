@@ -52,8 +52,8 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
     /// </summary>
     public IReadOnlyList<BilibiliSortOptionItem> SortOptions { get; } =
     [
-        new(BilibiliFollowingSortMode.MostVisited, "最常访问"),
         new(BilibiliFollowingSortMode.RecentFollow, "最近关注"),
+        new(BilibiliFollowingSortMode.MostVisited, "最常访问"),
     ];
 
     [ObservableProperty]
@@ -76,7 +76,7 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
         _api = api;
         _fileDialogs = fileDialogs;
         _suppressSortReload = true;
-        SelectedSortOption = SortOptions[0]; // 最常访问 = bilibili 默认
+        SelectedSortOption = SortOptions[0]; // 最近关注 = 本应用默认
         _suppressSortReload = false;
         Channels.CollectionChanged += OnChannelsCollectionChanged;
         _ = TryRestoreSessionAsync();
@@ -263,7 +263,7 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
         _loadCts = new CancellationTokenSource();
         var token = _loadCts.Token;
         var progress = new Progress<string>(msg => StatusMessage = msg);
-        var sortMode = SelectedSortOption?.Mode ?? BilibiliFollowingSortMode.MostVisited;
+        var sortMode = SelectedSortOption?.Mode ?? BilibiliFollowingSortMode.RecentFollow;
 
         var (list, total) = await _api.ListFollowingsAsync(mid, sortMode, progress, token);
         Channels.Clear();
@@ -274,8 +274,8 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
         ApplyFilter();
         var sortLabel = sortMode switch
         {
-            BilibiliFollowingSortMode.RecentFollow => "最近关注",
-            _ => "最常访问",
+            BilibiliFollowingSortMode.MostVisited => "最常访问",
+            _ => "最近关注",
         };
         StatusMessage = $"已载入 {Channels.Count} 个关注 UP（总数 {TotalCount}，排序：{sortLabel}）。";
 

@@ -257,7 +257,7 @@ public sealed class BilibiliApiClient : IDisposable
 
     public async Task<(IReadOnlyList<BilibiliFollowing> List, long Total)> ListFollowingsAsync(
         long mid,
-        BilibiliFollowingSortMode sortMode = BilibiliFollowingSortMode.MostVisited,
+        BilibiliFollowingSortMode sortMode = BilibiliFollowingSortMode.RecentFollow,
         IProgress<string>? progress = null,
         CancellationToken cancellationToken = default)
     {
@@ -271,9 +271,9 @@ public sealed class BilibiliApiClient : IDisposable
         {
             // 最常访问
             BilibiliFollowingSortMode.MostVisited => "&order_type=attention",
-            // 最近关注：order_type 留空，按关注时间
+            // 最近关注（默认）：order_type 留空，按关注时间
             BilibiliFollowingSortMode.RecentFollow => "",
-            _ => "&order_type=attention",
+            _ => "",
         };
 
         while (true)
