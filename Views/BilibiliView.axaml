@@ -1,0 +1,288 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:YoutubeSubscription.ViewModels"
+             xmlns:models="using:YoutubeSubscription.Models"
+             xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+             mc:Ignorable="d" d:DesignWidth="960" d:DesignHeight="640"
+             x:Class="YoutubeSubscription.Views.BilibiliView"
+             x:Name="Root"
+             x:DataType="vm:BilibiliViewModel">
+
+    <Grid RowDefinitions="Auto,Auto,*,Auto">
+        <!-- Header -->
+        <Border Grid.Row="0"
+                Padding="16,14"
+                Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+            <Grid ColumnDefinitions="*,Auto">
+                <StackPanel Spacing="4">
+                    <TextBlock Text="B站 关注管理"
+                               FontSize="20"
+                               FontWeight="SemiBold" />
+                    <TextBlock Text="{Binding TotalCountText}"
+                               FontSize="14"
+                               Opacity="0.9" />
+                    <TextBlock Text="{Binding AccountText}"
+                               FontSize="12"
+                               Opacity="0.7" />
+                    <TextBlock Text="{Binding SelectedCountText}"
+                               FontSize="12"
+                               Opacity="0.7" />
+                </StackPanel>
+
+                <StackPanel Grid.Column="1"
+                            Orientation="Horizontal"
+                            Spacing="8"
+                            VerticalAlignment="Center">
+                    <Button Content="导入 cookies.txt"
+                            Command="{Binding ImportCookiesTxtCommand}"
+                            IsEnabled="{Binding !IsBusy}"
+                            Classes="accent"
+                            ToolTip.Tip="手动选择浏览器导出的 Netscape cookies.txt 登录" />
+                    <Button Content="重新整理"
+                            Command="{Binding RefreshCommand}"
+                            IsEnabled="{Binding IsAuthenticated}" />
+                    <Button Content="登出"
+                            Command="{Binding LogoutCommand}"
+                            IsEnabled="{Binding IsAuthenticated}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- Toolbar -->
+        <Border Grid.Row="1" Padding="16,10" BorderThickness="0,0,0,1"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <TextBlock Text="排序"
+                               VerticalAlignment="Center"
+                               Opacity="0.7" />
+                    <ComboBox Width="140"
+                              ItemsSource="{Binding SortOptions}"
+                              SelectedItem="{Binding SelectedSortOption}"
+                              IsEnabled="{Binding IsAuthenticated}"
+                              ToolTip.Tip="对应 bilibili.com 关注列表排序：最常访问 / 最近关注">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:BilibiliSortOptionItem">
+                                <TextBlock Text="{Binding Label}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </StackPanel>
+
+                <TextBox Grid.Column="1"
+                         PlaceholderText="搜索 UP 名称、UID…"
+                         Text="{Binding FilterText}"
+                         MaxWidth="280"
+                         HorizontalAlignment="Left"
+                         IsEnabled="{Binding IsAuthenticated}" />
+
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
+                    <Button Content="全选"
+                            Command="{Binding SelectAllCommand}"
+                            IsEnabled="{Binding IsAuthenticated}" />
+                    <Button Content="前33个"
+                            Command="{Binding SelectFirst33Command}"
+                            IsEnabled="{Binding IsAuthenticated}"
+                            ToolTip.Tip="勾选当前列表前 33 个 UP" />
+                    <Button Content="取消全选"
+                            Command="{Binding DeselectAllCommand}"
+                            IsEnabled="{Binding IsAuthenticated}" />
+                    <Button Content="打开浏览器"
+                            Command="{Binding OpenSelectedInBrowserCommand}"
+                            IsEnabled="{Binding IsAuthenticated}"
+                            ToolTip.Tip="在默认浏览器打开所有已勾选 UP 空间" />
+                    <Button Content="取消关注"
+                            Command="{Binding RequestUnfollowCommand}"
+                            IsEnabled="{Binding IsAuthenticated}"
+                            Classes="danger"
+                            ToolTip.Tip="取消关注已勾选的 UP" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <!-- List -->
+        <Grid Grid.Row="2">
+            <ListBox ItemsSource="{Binding FilteredChannels}"
+                     Background="Transparent"
+                     Margin="4,0"
+                     IsVisible="{Binding IsAuthenticated}">
+                <ListBox.Styles>
+                    <Style Selector="ListBoxItem">
+                        <Setter Property="Padding" Value="0" />
+                        <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+                    </Style>
+                </ListBox.Styles>
+                <ListBox.ItemTemplate>
+                    <DataTemplate x:DataType="models:BilibiliFollowing">
+                        <Border Padding="16,12"
+                                BorderThickness="0,0,0,1"
+                                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+                            <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="14">
+                                <CheckBox IsChecked="{Binding IsSelected}"
+                                          VerticalAlignment="Center" />
+
+                                <Button Grid.Column="1"
+                                        Width="72"
+                                        Height="72"
+                                        Padding="0"
+                                        BorderThickness="0"
+                                        Background="Transparent"
+                                        Command="{Binding #Root.((vm:BilibiliViewModel)DataContext).OpenSpaceCommand}"
+                                        CommandParameter="{Binding}">
+                                    <Border Width="72"
+                                            Height="72"
+                                            CornerRadius="36"
+                                            ClipToBounds="True"
+                                            Background="#E5E5E5">
+                                        <Panel>
+                                            <TextBlock Text="{Binding Name}"
+                                                       FontSize="22"
+                                                       Opacity="0.3"
+                                                       HorizontalAlignment="Center"
+                                                       VerticalAlignment="Center" />
+                                            <Image Source="{Binding Face}"
+                                                   Stretch="UniformToFill"
+                                                   IsVisible="{Binding Face, Converter={x:Static ObjectConverters.IsNotNull}}" />
+                                        </Panel>
+                                    </Border>
+                                </Button>
+
+                                <Button Grid.Column="2"
+                                        HorizontalAlignment="Stretch"
+                                        HorizontalContentAlignment="Left"
+                                        Background="Transparent"
+                                        BorderThickness="0"
+                                        Padding="0"
+                                        Command="{Binding #Root.((vm:BilibiliViewModel)DataContext).OpenSpaceCommand}"
+                                        CommandParameter="{Binding}">
+                                    <StackPanel Spacing="3">
+                                        <TextBlock Text="{Binding Name}"
+                                                   FontSize="15"
+                                                   FontWeight="SemiBold"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding MetaLine}"
+                                                   FontSize="12"
+                                                   Opacity="0.65"
+                                                   TextTrimming="CharacterEllipsis" />
+                                        <TextBlock Text="{Binding Sign}"
+                                                   FontSize="12"
+                                                   Opacity="0.5"
+                                                   MaxLines="2"
+                                                   TextWrapping="Wrap"
+                                                   TextTrimming="CharacterEllipsis" />
+                                    </StackPanel>
+                                </Button>
+
+                                <Border Grid.Column="3"
+                                        VerticalAlignment="Center"
+                                        CornerRadius="16"
+                                        Padding="12,8"
+                                        Background="{DynamicResource SystemControlBackgroundChromeMediumBrush}">
+                                    <TextBlock Text="已关注" FontSize="12" Opacity="0.85" />
+                                </Border>
+                            </Grid>
+                        </Border>
+                    </DataTemplate>
+                </ListBox.ItemTemplate>
+            </ListBox>
+
+            <!-- Login panel：仅支持手动导入 cookies.txt -->
+            <ScrollViewer IsVisible="{Binding !IsAuthenticated}"
+                          HorizontalScrollBarVisibility="Disabled">
+                <StackPanel HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Spacing="14"
+                            MaxWidth="480"
+                            Margin="24">
+                    <TextBlock Text="登录哔哩哔哩"
+                               FontSize="18"
+                               FontWeight="SemiBold"
+                               HorizontalAlignment="Center" />
+                    <TextBlock Text="请手动导入浏览器导出的 cookies.txt 登录后，即可查看关注列表并取消关注。"
+                               Opacity="0.7"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center" />
+
+                    <Border Padding="16"
+                            CornerRadius="12"
+                            Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="1. 浏览器登录 bilibili.com"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Text="2. 用扩展（如 Get cookies.txt LOCALLY）导出 Netscape 格式 cookies.txt"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Text="3. 点击下方按钮，手动选择该文件"
+                                       TextWrapping="Wrap" />
+                            <Button Content="选择 cookies.txt 并登录"
+                                    Command="{Binding ImportCookiesTxtCommand}"
+                                    HorizontalAlignment="Center"
+                                    Classes="accent"
+                                    IsEnabled="{Binding !IsBusy}"
+                                    ToolTip.Tip="打开文件对话框，选择 cookies.txt" />
+                            <TextBlock Text="程序会读取 SESSDATA、bili_jct（及 DedeUserID、buvid3），不会上传该文件。"
+                                       FontSize="11"
+                                       Opacity="0.55"
+                                       TextWrapping="Wrap" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </ScrollViewer>
+
+            <!-- Busy -->
+            <Border IsVisible="{Binding IsBusy}"
+                    Background="#88000000"
+                    ZIndex="10">
+                <StackPanel HorizontalAlignment="Center"
+                            VerticalAlignment="Center"
+                            Spacing="12">
+                    <ProgressBar IsIndeterminate="True" Width="220" />
+                    <TextBlock Text="{Binding StatusMessage}"
+                               MaxWidth="400"
+                               TextWrapping="Wrap"
+                               TextAlignment="Center" />
+                </StackPanel>
+            </Border>
+
+            <!-- Confirm -->
+            <Border IsVisible="{Binding IsConfirmUnfollowVisible}"
+                    Background="#AA000000"
+                    ZIndex="20">
+                <Border Background="{DynamicResource SystemRegionBrush}"
+                        CornerRadius="12"
+                        Padding="24"
+                        MaxWidth="420"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                    <StackPanel Spacing="16">
+                        <TextBlock Text="确认取消关注"
+                                   FontSize="18"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding ConfirmMessage}"
+                                   TextWrapping="Wrap"
+                                   LineHeight="22" />
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Right"
+                                    Spacing="8">
+                            <Button Content="返回"
+                                    Command="{Binding CancelConfirmUnfollowCommand}" />
+                            <Button Content="确定取消关注"
+                                    Command="{Binding ConfirmUnfollowCommand}"
+                                    Classes="accent" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Border>
+        </Grid>
+
+        <!-- Status -->
+        <Border Grid.Row="3"
+                Padding="16,10"
+                BorderThickness="0,1,0,0"
+                BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+            <TextBlock Text="{Binding StatusMessage}"
+                       TextWrapping="Wrap"
+                       Opacity="0.9" />
+        </Border>
+    </Grid>
+</UserControl>

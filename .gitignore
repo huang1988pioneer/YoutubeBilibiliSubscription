@@ -1,0 +1,18 @@
+## Build
+bin/
+obj/
+.vs/
+*.user
+*.suo
+
+## Secrets & tokens
+client_secrets.json
+credentials.json
+token.json
+**/Google.Apis.Auth/**
+
+## OS / IDE
+.DS_Store
+Thumbs.db
+.idea/
+*.DotSettings.user
