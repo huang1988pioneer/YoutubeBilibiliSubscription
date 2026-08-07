@@ -359,7 +359,7 @@ public sealed class BilibiliApiClient : IDisposable
     private void EnsureLoggedIn()
     {
         if (!IsAuthenticated)
-            throw new InvalidOperationException("尚未登录 B 站，请先扫码或填入 Cookie。");
+            throw new InvalidOperationException("尚未登录 B 站，请手动导入 cookies.txt。");
     }
 
     private static void EnsureCodeOk(JsonElement root, string action)

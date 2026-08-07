@@ -2,7 +2,6 @@ using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Diagnostics;
-using Avalonia.Media.Imaging;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using YoutubeSubscription.Models;
@@ -14,7 +13,6 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
 {
     private readonly BilibiliApiClient _api;
     private readonly FileDialogService _fileDialogs;
-    private CancellationTokenSource? _qrCts;
     private CancellationTokenSource? _loadCts;
 
     public ObservableCollection<BilibiliFollowing> Channels { get; } = [];
@@ -22,7 +20,7 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
 
     [ObservableProperty]
     public partial string StatusMessage { get; set; } =
-        "请使用哔哩哔哩 App 扫码登录，或导入 cookies.txt / 手动填入 Cookie。";
+        "请手动导入浏览器导出的 cookies.txt 登录 B 站。";
 
     [ObservableProperty]
     public partial string AccountText { get; set; } = "未登录";
@@ -48,24 +46,6 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     public partial string ConfirmMessage { get; set; } = string.Empty;
 
-    [ObservableProperty]
-    public partial Bitmap? QrImage { get; set; }
-
-    [ObservableProperty]
-    public partial string QrHint { get; set; } = "点击「扫码登录」生成二维码";
-
-    [ObservableProperty]
-    public partial bool IsQrVisible { get; set; }
-
-    [ObservableProperty]
-    public partial string ManualSessData { get; set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial string ManualBiliJct { get; set; } = string.Empty;
-
-    [ObservableProperty]
-    public partial bool IsCookiePanelVisible { get; set; }
-
     public string TotalCountText => $"关注 UP 总数：{TotalCount}";
     public string SelectedCountText => $"已勾选：{SelectedCount}";
 
@@ -85,10 +65,8 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
 
     public void Dispose()
     {
-        _qrCts?.Cancel();
         _loadCts?.Cancel();
         _api.Dispose();
-        QrImage?.Dispose();
     }
 
     partial void OnTotalCountChanged(long value) => OnPropertyChanged(nameof(TotalCountText));
@@ -156,7 +134,7 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
         {
             _api.ClearCredential();
             IsAuthenticated = false;
-            StatusMessage = $"登录已失效：{ex.Message}。请重新登录。";
+            StatusMessage = $"登录已失效：{ex.Message}。请重新导入 cookies.txt。";
         }
         finally
         {
@@ -164,99 +142,7 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
         }
     }
 
-    [RelayCommand]
-    private async Task StartQrLoginAsync()
-    {
-        if (IsBusy)
-            return;
-
-        _qrCts?.Cancel();
-        _qrCts = new CancellationTokenSource();
-        var token = _qrCts.Token;
-
-        IsBusy = true;
-        IsQrVisible = true;
-        IsCookiePanelVisible = false;
-        StatusMessage = "正在生成登录二维码…";
-
-        try
-        {
-            var (key, _, bmp) = await _api.CreateLoginQrAsync(token);
-            QrImage?.Dispose();
-            QrImage = bmp;
-            QrHint = "请使用哔哩哔哩 App 扫码，并在手机上确认";
-            StatusMessage = "等待扫码…";
-            IsBusy = false; // allow UI while polling
-
-            while (!token.IsCancellationRequested)
-            {
-                await Task.Delay(1500, token);
-                var (ok, message, code) = await _api.PollLoginQrAsync(key, token);
-                QrHint = message;
-                StatusMessage = message;
-
-                if (ok)
-                {
-                    IsQrVisible = false;
-                    IsBusy = true;
-                    await LoadAfterLoginAsync();
-                    break;
-                }
-
-                if (code == 86038)
-                {
-                    StatusMessage = "二维码已过期，请重新点击「扫码登录」。";
-                    break;
-                }
-            }
-        }
-        catch (OperationCanceledException)
-        {
-            StatusMessage = "已取消扫码登录。";
-        }
-        catch (Exception ex)
-        {
-            StatusMessage = $"扫码登录失败：{ex.Message}";
-        }
-        finally
-        {
-            IsBusy = false;
-        }
-    }
-
-    [RelayCommand]
-    private void ShowCookiePanel()
-    {
-        IsCookiePanelVisible = !IsCookiePanelVisible;
-        IsQrVisible = false;
-        _qrCts?.Cancel();
-    }
-
-    [RelayCommand]
-    private async Task LoginWithCookieAsync()
-    {
-        if (IsBusy)
-            return;
-
-        try
-        {
-            _api.LoginWithManualCookies(ManualSessData, ManualBiliJct);
-            IsBusy = true;
-            IsCookiePanelVisible = false;
-            StatusMessage = "Cookie 已套用，正在载入…";
-            await LoadAfterLoginAsync();
-        }
-        catch (Exception ex)
-        {
-            StatusMessage = $"Cookie 登录失败：{ex.Message}";
-            IsAuthenticated = false;
-        }
-        finally
-        {
-            IsBusy = false;
-        }
-    }
-
+    /// <summary>手动选择 cookies.txt 并登录（B 站唯一登录入口）。</summary>
     [RelayCommand]
     private async Task ImportCookiesTxtAsync()
     {
@@ -265,25 +151,16 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
 
         var path = await _fileDialogs.PickCookiesTxtAsync();
         if (path is null)
+        {
+            StatusMessage = "已取消选择 cookies.txt。";
             return;
+        }
 
         try
         {
             IsBusy = true;
             StatusMessage = "正在导入 cookies.txt…";
             _api.LoginWithCookiesTxt(path);
-
-            // Prefill manual fields for visibility (masked) so user can re-check if needed.
-            var cred = _api.Credential;
-            if (cred is not null)
-            {
-                ManualSessData = cred.SessData;
-                ManualBiliJct = cred.BiliJct;
-            }
-
-            IsCookiePanelVisible = false;
-            IsQrVisible = false;
-            _qrCts?.Cancel();
             StatusMessage = "cookies.txt 已导入，正在载入…";
             await LoadAfterLoginAsync();
         }
@@ -301,7 +178,6 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
     [RelayCommand]
     private async Task LogoutAsync()
     {
-        _qrCts?.Cancel();
         _loadCts?.Cancel();
         _api.ClearCredential();
         Channels.Clear();
@@ -310,8 +186,7 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
         SelectedCount = 0;
         IsAuthenticated = false;
         AccountText = "未登录";
-        IsQrVisible = false;
-        StatusMessage = "已登出 B 站。";
+        StatusMessage = "已登出 B 站。请重新导入 cookies.txt。";
         await Task.CompletedTask;
     }
 
@@ -558,20 +433,4 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
         }
     }
 
-    [RelayCommand]
-    private void OpenCookieHelp()
-    {
-        try
-        {
-            Process.Start(new ProcessStartInfo
-            {
-                FileName = "https://www.bilibili.com",
-                UseShellExecute = true,
-            });
-        }
-        catch
-        {
-            // ignore
-        }
-    }
 }

@@ -34,17 +34,11 @@
                             Orientation="Horizontal"
                             Spacing="8"
                             VerticalAlignment="Center">
-                    <Button Content="扫码登录"
-                            Command="{Binding StartQrLoginCommand}"
-                            IsEnabled="{Binding !IsBusy}"
-                            Classes="accent" />
-                    <Button Content="Cookie 登录"
-                            Command="{Binding ShowCookiePanelCommand}"
-                            IsEnabled="{Binding !IsBusy}" />
                     <Button Content="导入 cookies.txt"
                             Command="{Binding ImportCookiesTxtCommand}"
                             IsEnabled="{Binding !IsBusy}"
-                            ToolTip.Tip="从浏览器扩展导出的 Netscape cookies.txt 登录" />
+                            Classes="accent"
+                            ToolTip.Tip="手动选择浏览器导出的 Netscape cookies.txt 登录" />
                     <Button Content="重新整理"
                             Command="{Binding RefreshCommand}"
                             IsEnabled="{Binding IsAuthenticated}" />
@@ -175,7 +169,7 @@
                 </ListBox.ItemTemplate>
             </ListBox>
 
-            <!-- Login panel -->
+            <!-- Login panel：仅支持手动导入 cookies.txt -->
             <ScrollViewer IsVisible="{Binding !IsAuthenticated}"
                           HorizontalScrollBarVisibility="Disabled">
                 <StackPanel HorizontalAlignment="Center"
@@ -187,70 +181,28 @@
                                FontSize="18"
                                FontWeight="SemiBold"
                                HorizontalAlignment="Center" />
-                    <TextBlock Text="登录后可查看关注总数、列表，并勾选取消关注。"
+                    <TextBlock Text="请手动导入浏览器导出的 cookies.txt 登录后，即可查看关注列表并取消关注。"
                                Opacity="0.7"
                                TextWrapping="Wrap"
                                TextAlignment="Center" />
 
-                    <StackPanel Orientation="Horizontal"
-                                HorizontalAlignment="Center"
-                                Spacing="8">
-                        <Button Content="扫码登录"
-                                Command="{Binding StartQrLoginCommand}"
-                                Classes="accent" />
-                        <Button Content="使用 Cookie"
-                                Command="{Binding ShowCookiePanelCommand}" />
-                        <Button Content="导入 cookies.txt"
-                                Command="{Binding ImportCookiesTxtCommand}"
-                                ToolTip.Tip="从浏览器扩展导出的 Netscape cookies.txt 登录" />
-                    </StackPanel>
-
-                    <!-- QR -->
-                    <Border IsVisible="{Binding IsQrVisible}"
-                            Padding="16"
-                            CornerRadius="12"
-                            Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}"
-                            HorizontalAlignment="Center">
-                        <StackPanel Spacing="10" HorizontalAlignment="Center">
-                            <Image Source="{Binding QrImage}"
-                                   Width="220"
-                                   Height="220"
-                                   Stretch="Uniform" />
-                            <TextBlock Text="{Binding QrHint}"
-                                       TextAlignment="Center"
-                                       TextWrapping="Wrap"
-                                       MaxWidth="280" />
-                        </StackPanel>
-                    </Border>
-
-                    <!-- Cookie form -->
-                    <Border IsVisible="{Binding IsCookiePanelVisible}"
-                            Padding="16"
+                    <Border Padding="16"
                             CornerRadius="12"
                             Background="{DynamicResource SystemControlBackgroundChromeMediumLowBrush}">
-                        <StackPanel Spacing="10">
-                            <TextBlock Text="方式 1：导入浏览器扩展导出的 cookies.txt（推荐）"
-                                       Opacity="0.75"
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="1. 浏览器登录 bilibili.com"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Text="2. 用扩展（如 Get cookies.txt LOCALLY）导出 Netscape 格式 cookies.txt"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Text="3. 点击下方按钮，手动选择该文件"
                                        TextWrapping="Wrap" />
                             <Button Content="选择 cookies.txt 并登录"
                                     Command="{Binding ImportCookiesTxtCommand}"
-                                    HorizontalAlignment="Left"
-                                    Classes="accent" />
-                            <TextBlock Text="方式 2：手动粘贴 Cookie（登录 bilibili.com 后）"
-                                       Opacity="0.75"
-                                       TextWrapping="Wrap"
-                                       Margin="0,8,0,0" />
-                            <TextBox PlaceholderText="SESSDATA"
-                                     Text="{Binding ManualSessData}"
-                                     PasswordChar="•" />
-                            <TextBox PlaceholderText="bili_jct"
-                                     Text="{Binding ManualBiliJct}"
-                                     PasswordChar="•" />
-                            <Button Content="使用 Cookie 登录"
-                                    Command="{Binding LoginWithCookieCommand}"
-                                    HorizontalAlignment="Right"
-                                    Classes="accent" />
-                            <TextBlock Text="提示：可用 Get cookies.txt LOCALLY 等扩展导出；或 F12 → Application → Cookies → bilibili.com"
+                                    HorizontalAlignment="Center"
+                                    Classes="accent"
+                                    IsEnabled="{Binding !IsBusy}"
+                                    ToolTip.Tip="打开文件对话框，选择 cookies.txt" />
+                            <TextBlock Text="程序会读取 SESSDATA、bili_jct（及 DedeUserID、buvid3），不会上传该文件。"
                                        FontSize="11"
                                        Opacity="0.55"
                                        TextWrapping="Wrap" />

@@ -11,7 +11,7 @@
 
 - .NET 10 SDK
 - YouTube：Google 帳號 + YouTube Data API v3
-- B站：哔哩哔哩账号（扫码或 Cookie）
+- B站：哔哩哔哩账号（手动导入 cookies.txt）
 
 ## 建置與執行
 
@@ -45,27 +45,15 @@ Token：`%LocalAppData%\YoutubeSubscription\Google.Apis.Auth\`
 - **勾选** / **全选** / **取消全选**
 - **取消关注**已勾选 UP（确认后调用 API）
 
-### 登录方式
+### 登录方式（手动导入 cookies.txt）
 
-**方式 A：扫码（推荐）**
-
-1. 打开 **B站** 分页
-2. 点 **扫码登录**
-3. 用哔哩哔哩 App 扫描，手机确认
-
-**方式 B：导入 cookies.txt**
+B 站分頁**仅支持**手动选择浏览器导出的 `cookies.txt` 登录：
 
 1. 浏览器登录 [bilibili.com](https://www.bilibili.com)
 2. 用扩展（如 *Get cookies.txt LOCALLY*）导出 Netscape 格式 `cookies.txt`
-3. 程式内点 **导入 cookies.txt** / **选择 cookies.txt 并登录**
-4. 选择文件后自动读取 `SESSDATA`、`bili_jct`（及 `DedeUserID`、`buvid3`）
-
-**方式 C：手动 Cookie**
-
-1. 浏览器登录 [bilibili.com](https://www.bilibili.com)
-2. F12 → Application → Cookies → `bilibili.com`
-3. 复制 `SESSDATA`、`bili_jct`
-4. 程式内 **Cookie 登录** 贴上
+3. 打开 **B站** 分页 → **导入 cookies.txt** / **选择 cookies.txt 并登录**
+4. 在文件对话框中手动选择该文件
+5. 程序读取 `SESSDATA`、`bili_jct`（及 `DedeUserID`、`buvid3`）并缓存
 
 凭证缓存：`%LocalAppData%\YoutubeSubscription\Bilibili\credential.json`
 
