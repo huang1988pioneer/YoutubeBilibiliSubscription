@@ -7,6 +7,19 @@ using YoutubeSubscription.Models;
 
 namespace YoutubeSubscription.Services;
 
+/// <summary>
+/// Sort modes aligned with bilibili.com relation followings list
+/// (<c>order_type</c> on <c>/x/relation/followings</c>).
+/// </summary>
+public enum BilibiliFollowingSortMode
+{
+    /// <summary>最常访问 — API: order_type=attention</summary>
+    MostVisited = 0,
+
+    /// <summary>最近关注 — API: order_type empty (by follow time)</summary>
+    RecentFollow = 1,
+}
+
 public sealed class BilibiliApiClient : IDisposable
 {
     private const string UserAgent =
@@ -244,6 +257,7 @@ public sealed class BilibiliApiClient : IDisposable
 
     public async Task<(IReadOnlyList<BilibiliFollowing> List, long Total)> ListFollowingsAsync(
         long mid,
+        BilibiliFollowingSortMode sortMode = BilibiliFollowingSortMode.MostVisited,
         IProgress<string>? progress = null,
         CancellationToken cancellationToken = default)
     {
@@ -253,12 +267,20 @@ public sealed class BilibiliApiClient : IDisposable
         var pn = 1;
         const int ps = 50;
         var index = 0;
+        var orderTypeQuery = sortMode switch
+        {
+            // 最常访问
+            BilibiliFollowingSortMode.MostVisited => "&order_type=attention",
+            // 最近关注：order_type 留空，按关注时间
+            BilibiliFollowingSortMode.RecentFollow => "",
+            _ => "&order_type=attention",
+        };
 
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var url =
-                $"https://api.bilibili.com/x/relation/followings?vmid={mid}&pn={pn}&ps={ps}&order=desc&order_type=attention";
+                $"https://api.bilibili.com/x/relation/followings?vmid={mid}&pn={pn}&ps={ps}&order=desc{orderTypeQuery}";
             using var resp = await _http.GetAsync(url, cancellationToken);
             var json = await resp.Content.ReadAsStringAsync(cancellationToken);
             using var doc = JsonDocument.Parse(json);

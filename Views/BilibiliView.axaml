@@ -52,14 +52,32 @@
         <!-- Toolbar -->
         <Border Grid.Row="1" Padding="16,10" BorderThickness="0,0,0,1"
                 BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
-            <Grid ColumnDefinitions="*,Auto">
-                <TextBox PlaceholderText="搜索 UP 名称、UID…"
+            <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="12">
+                <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+                    <TextBlock Text="排序"
+                               VerticalAlignment="Center"
+                               Opacity="0.7" />
+                    <ComboBox Width="140"
+                              ItemsSource="{Binding SortOptions}"
+                              SelectedItem="{Binding SelectedSortOption}"
+                              IsEnabled="{Binding IsAuthenticated}"
+                              ToolTip.Tip="对应 bilibili.com 关注列表排序：最常访问 / 最近关注">
+                        <ComboBox.ItemTemplate>
+                            <DataTemplate x:DataType="vm:BilibiliSortOptionItem">
+                                <TextBlock Text="{Binding Label}" />
+                            </DataTemplate>
+                        </ComboBox.ItemTemplate>
+                    </ComboBox>
+                </StackPanel>
+
+                <TextBox Grid.Column="1"
+                         PlaceholderText="搜索 UP 名称、UID…"
                          Text="{Binding FilterText}"
-                         Width="280"
+                         MaxWidth="280"
                          HorizontalAlignment="Left"
                          IsEnabled="{Binding IsAuthenticated}" />
 
-                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8">
                     <Button Content="全选"
                             Command="{Binding SelectAllCommand}"
                             IsEnabled="{Binding IsAuthenticated}" />

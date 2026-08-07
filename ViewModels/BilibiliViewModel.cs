@@ -46,6 +46,22 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     public partial string ConfirmMessage { get; set; } = string.Empty;
 
+    /// <summary>
+    /// Sort options matching bilibili.com 关注列表（最常访问 / 最近关注）.
+    /// Changing selection re-fetches so order matches the server.
+    /// </summary>
+    public IReadOnlyList<BilibiliSortOptionItem> SortOptions { get; } =
+    [
+        new(BilibiliFollowingSortMode.MostVisited, "最常访问"),
+        new(BilibiliFollowingSortMode.RecentFollow, "最近关注"),
+    ];
+
+    [ObservableProperty]
+    public partial BilibiliSortOptionItem? SelectedSortOption { get; set; }
+
+    /// <summary>Avoid re-fetch when binding initially sets SelectedSortOption.</summary>
+    private bool _suppressSortReload;
+
     public string TotalCountText => $"关注 UP 总数：{TotalCount}";
     public string SelectedCountText => $"已勾选：{SelectedCount}";
 
@@ -59,6 +75,9 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
     {
         _api = api;
         _fileDialogs = fileDialogs;
+        _suppressSortReload = true;
+        SelectedSortOption = SortOptions[0]; // 最常访问 = bilibili 默认
+        _suppressSortReload = false;
         Channels.CollectionChanged += OnChannelsCollectionChanged;
         _ = TryRestoreSessionAsync();
     }
@@ -72,6 +91,31 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
     partial void OnTotalCountChanged(long value) => OnPropertyChanged(nameof(TotalCountText));
     partial void OnSelectedCountChanged(int value) => OnPropertyChanged(nameof(SelectedCountText));
     partial void OnFilterTextChanged(string value) => ApplyFilter();
+
+    partial void OnSelectedSortOptionChanged(BilibiliSortOptionItem? value)
+    {
+        if (_suppressSortReload || value is null || !IsAuthenticated)
+            return;
+
+        // Re-fetch with API order so list matches bilibili.com 关注列表 sorting.
+        _ = ReloadWithCurrentSortAsync();
+    }
+
+    private async Task ReloadWithCurrentSortAsync()
+    {
+        if (IsBusy || !IsAuthenticated)
+            return;
+
+        IsBusy = true;
+        try
+        {
+            await LoadAfterLoginAsync();
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
 
     private void OnChannelsCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
@@ -219,15 +263,21 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
         _loadCts = new CancellationTokenSource();
         var token = _loadCts.Token;
         var progress = new Progress<string>(msg => StatusMessage = msg);
+        var sortMode = SelectedSortOption?.Mode ?? BilibiliFollowingSortMode.MostVisited;
 
-        var (list, total) = await _api.ListFollowingsAsync(mid, progress, token);
+        var (list, total) = await _api.ListFollowingsAsync(mid, sortMode, progress, token);
         Channels.Clear();
         foreach (var ch in list)
             Channels.Add(ch);
 
         TotalCount = total > 0 ? total : list.Count;
         ApplyFilter();
-        StatusMessage = $"已载入 {Channels.Count} 个关注 UP（总数 {TotalCount}）。";
+        var sortLabel = sortMode switch
+        {
+            BilibiliFollowingSortMode.RecentFollow => "最近关注",
+            _ => "最常访问",
+        };
+        StatusMessage = $"已载入 {Channels.Count} 个关注 UP（总数 {TotalCount}，排序：{sortLabel}）。";
 
         _ = LoadFacesAsync(list, token);
     }
