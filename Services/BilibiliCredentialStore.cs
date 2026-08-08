@@ -9,6 +9,12 @@ public sealed class BilibiliCredential
     public string BiliJct { get; set; } = string.Empty;
     public string DedeUserId { get; set; } = string.Empty;
     public string Buvid3 { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Extra cookies from browser export (buvid4, b_nut, sid, etc.).
+    /// Applied wholesale so write APIs are less likely to hit risk control (-352).
+    /// </summary>
+    public Dictionary<string, string> ExtraCookies { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
 /// <summary>Persists Bilibili login cookies under LocalAppData.</summary>

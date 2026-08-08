@@ -43,8 +43,22 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
     [ObservableProperty]
     public partial bool IsConfirmUnfollowVisible { get; set; }
 
+    /// <summary>全选后取消关注的第二次确认（更强警告）。</summary>
+    [ObservableProperty]
+    public partial bool IsConfirmUnfollowSecondVisible { get; set; }
+
+    /// <summary>全选后在浏览器打开的确认。</summary>
+    [ObservableProperty]
+    public partial bool IsConfirmOpenBrowserVisible { get; set; }
+
     [ObservableProperty]
     public partial string ConfirmMessage { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string ConfirmSecondMessage { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string ConfirmOpenBrowserMessage { get; set; } = string.Empty;
 
     /// <summary>
     /// Sort options matching bilibili.com 关注列表（最常访问 / 最近关注）.
@@ -350,7 +364,11 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
         StatusMessage = "已取消所有勾选。";
     }
 
-    /// <summary>在浏览器打开所有已勾选 UP 空间。</summary>
+    /// <summary>是否为全选状态（已勾选数等于全部频道数，且至少 1 个）。</summary>
+    private bool IsAllSelected =>
+        Channels.Count > 0 && SelectedCount == Channels.Count;
+
+    /// <summary>在浏览器打开所有已勾选 UP 空间；全选时先跳确认。</summary>
     [RelayCommand]
     private void OpenSelectedInBrowser()
     {
@@ -364,6 +382,48 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
             return;
         }
 
+        // 全选后打开浏览器：二次确认，避免一次开出大量分页
+        if (IsAllSelected)
+        {
+            ConfirmOpenBrowserMessage =
+                $"您已全选全部 {targets.Count} 个关注 UP。\n" +
+                "确定要在浏览器一次打开全部吗？\n" +
+                "可能会打开大量分页，浏览器可能短暂卡顿。";
+            IsConfirmOpenBrowserVisible = true;
+            return;
+        }
+
+        ExecuteOpenInBrowser(targets);
+    }
+
+    [RelayCommand]
+    private void CancelConfirmOpenBrowser()
+    {
+        IsConfirmOpenBrowserVisible = false;
+        ConfirmOpenBrowserMessage = string.Empty;
+    }
+
+    [RelayCommand]
+    private void ConfirmOpenBrowser()
+    {
+        var targets = Channels
+            .Where(c => c.IsSelected && !string.IsNullOrWhiteSpace(c.SpaceUrl))
+            .ToList();
+
+        IsConfirmOpenBrowserVisible = false;
+        ConfirmOpenBrowserMessage = string.Empty;
+
+        if (targets.Count == 0)
+        {
+            StatusMessage = "没有已勾选的 UP。";
+            return;
+        }
+
+        ExecuteOpenInBrowser(targets);
+    }
+
+    private void ExecuteOpenInBrowser(List<BilibiliFollowing> targets)
+    {
         var opened = 0;
         var failed = 0;
         foreach (var ch in targets)
@@ -399,6 +459,8 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
 
         ConfirmMessage =
             $"确定要取消关注已勾选的 {SelectedCount} 个 UP 吗？\n此操作无法复原（需重新关注）。";
+        IsConfirmUnfollowSecondVisible = false;
+        ConfirmSecondMessage = string.Empty;
         IsConfirmUnfollowVisible = true;
     }
 
@@ -406,9 +468,14 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
     private void CancelConfirmUnfollow()
     {
         IsConfirmUnfollowVisible = false;
+        IsConfirmUnfollowSecondVisible = false;
         ConfirmMessage = string.Empty;
+        ConfirmSecondMessage = string.Empty;
     }
 
+    /// <summary>
+    /// 第一次确认：一般情况直接执行；全选时改显示第二次确认。
+    /// </summary>
     [RelayCommand]
     private async Task ConfirmUnfollowAsync()
     {
@@ -419,14 +486,55 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
         if (targets.Count == 0)
         {
             IsConfirmUnfollowVisible = false;
+            IsConfirmUnfollowSecondVisible = false;
             StatusMessage = "没有已勾选的 UP。";
             return;
         }
 
+        // 全选后取消关注：第一次确认通过后，再跳第二次确认
+        if (IsAllSelected && !IsConfirmUnfollowSecondVisible)
+        {
+            IsConfirmUnfollowVisible = false;
+            ConfirmSecondMessage =
+                $"您已全选全部 {targets.Count} 个关注 UP。\n" +
+                "再次确认：真的要全部取消关注吗？\n" +
+                "此操作无法复原，需逐一手动重新关注。";
+            IsConfirmUnfollowSecondVisible = true;
+            return;
+        }
+
+        await ExecuteUnfollowAsync(targets);
+    }
+
+    /// <summary>第二次确认（全选路径）通过后执行取消关注。</summary>
+    [RelayCommand]
+    private async Task ConfirmUnfollowSecondAsync()
+    {
+        if (IsBusy)
+            return;
+
+        var targets = Channels.Where(c => c.IsSelected).ToList();
+        if (targets.Count == 0)
+        {
+            IsConfirmUnfollowVisible = false;
+            IsConfirmUnfollowSecondVisible = false;
+            StatusMessage = "没有已勾选的 UP。";
+            return;
+        }
+
+        await ExecuteUnfollowAsync(targets);
+    }
+
+    private async Task ExecuteUnfollowAsync(List<BilibiliFollowing> targets)
+    {
         IsConfirmUnfollowVisible = false;
+        IsConfirmUnfollowSecondVisible = false;
+        ConfirmMessage = string.Empty;
+        ConfirmSecondMessage = string.Empty;
         IsBusy = true;
         var success = 0;
         var failed = new List<string>();
+        var abortedByRisk = false;
 
         try
         {
@@ -439,11 +547,24 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
                     await _api.UnfollowAsync(ch.Mid);
                     Channels.Remove(ch);
                     success++;
-                    await Task.Delay(300); // gentle rate limit
+                    // Slower pacing reduces -352 risk control on bulk unfollow.
+                    await Task.Delay(800 + Random.Shared.Next(200, 600));
                 }
                 catch (Exception ex)
                 {
                     failed.Add($"{ch.Name}: {ex.Message}");
+
+                    // Consecutive risk-control hits: stop the batch to avoid more bans.
+                    if (IsRiskControlError(ex.Message)
+                        && failed.Count >= 2
+                        && failed.TakeLast(2).All(f => IsRiskControlError(f)))
+                    {
+                        abortedByRisk = true;
+                        var remaining = targets.Count - i - 1;
+                        if (remaining > 0)
+                            failed.Add($"已中止剩余 {remaining} 个（连续触发风控 -352）。");
+                        break;
+                    }
                 }
             }
 
@@ -454,15 +575,34 @@ public partial class BilibiliViewModel : ViewModelBase, IDisposable
             ApplyFilter();
             RecalculateSelectedCount();
 
-            StatusMessage = failed.Count == 0
-                ? $"已成功取消关注 {success} 个 UP。目前剩余 {Channels.Count} 个。"
-                : $"成功 {success} 个，失败 {failed.Count} 个。\n" + string.Join("\n", failed.Take(5));
+            if (failed.Count == 0)
+            {
+                StatusMessage = $"已成功取消关注 {success} 个 UP。目前剩余 {Channels.Count} 个。";
+            }
+            else if (abortedByRisk)
+            {
+                StatusMessage =
+                    $"成功 {success} 个，失败/中止 {failed.Count} 条。\n" +
+                    "B 站风控（-352）：请重新在浏览器导出完整 cookies.txt 并导入，" +
+                    "稍后分批取消（例如每次 10 个）。\n" +
+                    string.Join("\n", failed.Take(4));
+            }
+            else
+            {
+                StatusMessage =
+                    $"成功 {success} 个，失败 {failed.Count} 个。\n" +
+                    string.Join("\n", failed.Take(5));
+            }
         }
         finally
         {
             IsBusy = false;
         }
     }
+
+    private static bool IsRiskControlError(string message) =>
+        message.Contains("-352", StringComparison.Ordinal)
+        || message.Contains("风控", StringComparison.Ordinal);
 
     [RelayCommand]
     private void OpenSpace(BilibiliFollowing? channel)

@@ -44,8 +44,22 @@ public partial class MainViewModel : ViewModelBase
     [ObservableProperty]
     public partial bool IsConfirmUnsubscribeVisible { get; set; }
 
+    /// <summary>全選後取消訂閱的第二次確認（更強警告）。</summary>
+    [ObservableProperty]
+    public partial bool IsConfirmUnsubscribeSecondVisible { get; set; }
+
+    /// <summary>全選後在瀏覽器開啟的確認。</summary>
+    [ObservableProperty]
+    public partial bool IsConfirmOpenBrowserVisible { get; set; }
+
     [ObservableProperty]
     public partial string ConfirmMessage { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string ConfirmSecondMessage { get; set; } = string.Empty;
+
+    [ObservableProperty]
+    public partial string ConfirmOpenBrowserMessage { get; set; } = string.Empty;
 
     /// <summary>Channels matching the filter (bound to list).</summary>
     public ObservableCollection<SubscriptionChannel> FilteredChannels { get; } = [];
@@ -424,7 +438,11 @@ public partial class MainViewModel : ViewModelBase
         StatusMessage = "已取消所有勾選。";
     }
 
-    /// <summary>在瀏覽器開啟所有已勾選頻道。</summary>
+    /// <summary>是否為全選狀態（已勾選數等於全部頻道數，且至少 1 個）。</summary>
+    private bool IsAllSelected =>
+        Channels.Count > 0 && SelectedCount == Channels.Count;
+
+    /// <summary>在瀏覽器開啟所有已勾選頻道；全選時先跳確認。</summary>
     [RelayCommand]
     private void OpenSelectedInBrowser()
     {
@@ -438,6 +456,48 @@ public partial class MainViewModel : ViewModelBase
             return;
         }
 
+        // 全選後開啟瀏覽器：二次確認，避免一次開出大量分頁
+        if (IsAllSelected)
+        {
+            ConfirmOpenBrowserMessage =
+                $"您已全選全部 {targets.Count} 個訂閱頻道。\n" +
+                "確定要在瀏覽器一次開啟全部嗎？\n" +
+                "可能會開啟大量分頁，瀏覽器可能短暫卡頓。";
+            IsConfirmOpenBrowserVisible = true;
+            return;
+        }
+
+        ExecuteOpenInBrowser(targets);
+    }
+
+    [RelayCommand]
+    private void CancelConfirmOpenBrowser()
+    {
+        IsConfirmOpenBrowserVisible = false;
+        ConfirmOpenBrowserMessage = string.Empty;
+    }
+
+    [RelayCommand]
+    private void ConfirmOpenBrowser()
+    {
+        var targets = Channels
+            .Where(c => c.IsSelected && !string.IsNullOrWhiteSpace(c.ChannelUrl))
+            .ToList();
+
+        IsConfirmOpenBrowserVisible = false;
+        ConfirmOpenBrowserMessage = string.Empty;
+
+        if (targets.Count == 0)
+        {
+            StatusMessage = "沒有已勾選的頻道。";
+            return;
+        }
+
+        ExecuteOpenInBrowser(targets);
+    }
+
+    private void ExecuteOpenInBrowser(List<SubscriptionChannel> targets)
+    {
         var opened = 0;
         var failed = 0;
         foreach (var ch in targets)
@@ -473,6 +533,8 @@ public partial class MainViewModel : ViewModelBase
 
         ConfirmMessage =
             $"確定要取消訂閱已勾選的 {SelectedCount} 個頻道嗎？\n此操作無法復原（需重新訂閱）。";
+        IsConfirmUnsubscribeSecondVisible = false;
+        ConfirmSecondMessage = string.Empty;
         IsConfirmUnsubscribeVisible = true;
     }
 
@@ -480,9 +542,14 @@ public partial class MainViewModel : ViewModelBase
     private void CancelConfirmUnsubscribe()
     {
         IsConfirmUnsubscribeVisible = false;
+        IsConfirmUnsubscribeSecondVisible = false;
         ConfirmMessage = string.Empty;
+        ConfirmSecondMessage = string.Empty;
     }
 
+    /// <summary>
+    /// 第一次確認：一般情況直接執行；全選時改顯示第二次確認。
+    /// </summary>
     [RelayCommand]
     private async Task ConfirmUnsubscribeAsync()
     {
@@ -493,15 +560,56 @@ public partial class MainViewModel : ViewModelBase
         if (targets.Count == 0)
         {
             IsConfirmUnsubscribeVisible = false;
+            IsConfirmUnsubscribeSecondVisible = false;
             StatusMessage = "沒有已勾選的頻道。";
             return;
         }
 
+        // 全選後取消訂閱：第一次確認通過後，再跳第二次確認
+        if (IsAllSelected && !IsConfirmUnsubscribeSecondVisible)
+        {
+            IsConfirmUnsubscribeVisible = false;
+            ConfirmSecondMessage =
+                $"您已全選全部 {targets.Count} 個訂閱頻道。\n" +
+                "再次確認：真的要全部取消訂閱嗎？\n" +
+                "此操作無法復原，需逐一手動重新訂閱。";
+            IsConfirmUnsubscribeSecondVisible = true;
+            return;
+        }
+
+        await ExecuteUnsubscribeAsync(targets);
+    }
+
+    /// <summary>第二次確認（全選路徑）通過後執行取消訂閱。</summary>
+    [RelayCommand]
+    private async Task ConfirmUnsubscribeSecondAsync()
+    {
+        if (_subscriptions is null || IsBusy)
+            return;
+
+        var targets = Channels.Where(c => c.IsSelected).ToList();
+        if (targets.Count == 0)
+        {
+            IsConfirmUnsubscribeVisible = false;
+            IsConfirmUnsubscribeSecondVisible = false;
+            StatusMessage = "沒有已勾選的頻道。";
+            return;
+        }
+
+        await ExecuteUnsubscribeAsync(targets);
+    }
+
+    private async Task ExecuteUnsubscribeAsync(List<SubscriptionChannel> targets)
+    {
         IsConfirmUnsubscribeVisible = false;
+        IsConfirmUnsubscribeSecondVisible = false;
+        ConfirmMessage = string.Empty;
+        ConfirmSecondMessage = string.Empty;
         IsBusy = true;
 
         var failed = new List<string>();
         var success = 0;
+        var abortedByQuota = false;
 
         try
         {
@@ -511,13 +619,24 @@ public partial class MainViewModel : ViewModelBase
                 StatusMessage = $"取消訂閱中 ({i + 1}/{targets.Count})：{ch.Title}";
                 try
                 {
-                    await _subscriptions.UnsubscribeAsync(ch.SubscriptionId);
+                    await _subscriptions!.UnsubscribeAsync(ch.SubscriptionId);
                     Channels.Remove(ch);
                     success++;
                 }
                 catch (Exception ex)
                 {
-                    failed.Add($"{ch.Title}: {ex.Message}");
+                    var friendly = FormatYouTubeError(ex);
+                    failed.Add($"{ch.Title}: {friendly}");
+
+                    // Daily API quota exhausted — further deletes will also fail.
+                    if (IsQuotaExceeded(ex))
+                    {
+                        abortedByQuota = true;
+                        var remaining = targets.Count - i - 1;
+                        if (remaining > 0)
+                            failed.Add($"已中止剩餘 {remaining} 個（YouTube API 配額已用盡）。");
+                        break;
+                    }
                 }
             }
 
@@ -529,16 +648,55 @@ public partial class MainViewModel : ViewModelBase
             RecalculateSelectedCount();
 
             if (failed.Count == 0)
+            {
                 StatusMessage = $"已成功取消訂閱 {success} 個頻道。目前剩餘 {Channels.Count} 個。";
+            }
+            else if (abortedByQuota)
+            {
+                StatusMessage =
+                    $"成功 {success} 個，失敗/中止 {failed.Count} 條。\n" +
+                    "YouTube Data API 每日配額已用盡（預設約 10,000 單位/天）。\n" +
+                    "取消訂閱每次約消耗 50 單位。請等到配額重置（太平洋時間午夜）後再試，" +
+                    "或在 Google Cloud Console 申請提高配額。\n" +
+                    string.Join("\n", failed.Take(3));
+            }
             else
+            {
                 StatusMessage =
                     $"成功 {success} 個，失敗 {failed.Count} 個。\n" +
                     string.Join("\n", failed.Take(5));
+            }
         }
         finally
         {
             IsBusy = false;
         }
+    }
+
+    private static bool IsQuotaExceeded(Exception ex)
+    {
+        var text = ex.ToString();
+        return text.Contains("quota", StringComparison.OrdinalIgnoreCase)
+               || text.Contains("exceeded", StringComparison.OrdinalIgnoreCase)
+               || text.Contains("dailyLimitExceeded", StringComparison.OrdinalIgnoreCase)
+               || text.Contains("quotaExceeded", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string FormatYouTubeError(Exception ex)
+    {
+        if (IsQuotaExceeded(ex))
+            return "YouTube API 配額已用盡（quota exceeded）。";
+
+        var msg = ex.Message;
+        // Strip HTML anchors sometimes embedded in Google API errors.
+        msg = System.Text.RegularExpressions.Regex.Replace(
+            msg,
+            "<[^>]+>",
+            string.Empty,
+            System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+        if (msg.Length > 180)
+            msg = msg[..177] + "…";
+        return msg;
     }
 
     [RelayCommand]

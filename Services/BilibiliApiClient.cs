@@ -59,17 +59,61 @@ public sealed class BilibiliApiClient : IDisposable
     public void ApplyCredential(BilibiliCredential credential)
     {
         _credential = credential;
-        _cookies.Add(new Cookie("SESSDATA", credential.SessData, "/", ".bilibili.com"));
-        _cookies.Add(new Cookie("bili_jct", credential.BiliJct, "/", ".bilibili.com"));
+
+        // Expire any previous cookies so re-import does not mix sessions.
+        foreach (Cookie c in _cookies.GetAllCookies())
+            c.Expired = true;
+
+        SetCookie("SESSDATA", credential.SessData);
+        SetCookie("bili_jct", credential.BiliJct);
         if (!string.IsNullOrWhiteSpace(credential.DedeUserId))
-            _cookies.Add(new Cookie("DedeUserID", credential.DedeUserId, "/", ".bilibili.com"));
+            SetCookie("DedeUserID", credential.DedeUserId);
+
         if (!string.IsNullOrWhiteSpace(credential.Buvid3))
-            _cookies.Add(new Cookie("buvid3", credential.Buvid3, "/", ".bilibili.com"));
+            SetCookie("buvid3", credential.Buvid3);
         else
         {
-            var buvid = Guid.NewGuid().ToString() + "infoc";
+            var buvid = Guid.NewGuid().ToString("N") + "infoc";
             credential.Buvid3 = buvid;
-            _cookies.Add(new Cookie("buvid3", buvid, "/", ".bilibili.com"));
+            SetCookie("buvid3", buvid);
+        }
+
+        // Apply full browser cookie set — helps avoid write-API risk control (-352).
+        if (credential.ExtraCookies is not null)
+        {
+            foreach (var (name, value) in credential.ExtraCookies)
+            {
+                if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(value))
+                    continue;
+                if (name.Equals("SESSDATA", StringComparison.OrdinalIgnoreCase)
+                    || name.Equals("bili_jct", StringComparison.OrdinalIgnoreCase)
+                    || name.Equals("DedeUserID", StringComparison.OrdinalIgnoreCase)
+                    || name.Equals("buvid3", StringComparison.OrdinalIgnoreCase))
+                    continue;
+                SetCookie(name, value);
+            }
+        }
+    }
+
+    private void SetCookie(string name, string value)
+    {
+        // Cookie values from Netscape export are often URL-encoded; CookieContainer expects raw.
+        var decoded = Uri.UnescapeDataString(value.Trim());
+        try
+        {
+            _cookies.Add(new Cookie(name, decoded, "/", ".bilibili.com"));
+        }
+        catch
+        {
+            // Some cookie values are invalid for System.Net.Cookie; fall back to raw string.
+            try
+            {
+                _cookies.Add(new Cookie(name, value.Trim(), "/", ".bilibili.com"));
+            }
+            catch
+            {
+                // ignore unparsable cookies
+            }
         }
     }
 
@@ -346,13 +390,14 @@ public sealed class BilibiliApiClient : IDisposable
         return (result, total);
     }
 
-    /// <summary>Unfollow UP. act=2.</summary>
+    /// <summary>Unfollow UP. act=2. Retries once on risk-control (-352).</summary>
     public async Task UnfollowAsync(long mid, CancellationToken cancellationToken = default)
     {
         EnsureLoggedIn();
         if (_credential is null || string.IsNullOrWhiteSpace(_credential.BiliJct))
             throw new InvalidOperationException("缺少 bili_jct，无法取消关注。");
 
+        // Align payload with web space-page unfollow (reduces -352 risk control hits).
         var form = new Dictionary<string, string>
         {
             ["fid"] = mid.ToString(),
@@ -360,20 +405,43 @@ public sealed class BilibiliApiClient : IDisposable
             ["re_src"] = "11",
             ["csrf"] = _credential.BiliJct,
             ["spmid"] = "333.999.0.0",
+            ["extend_content"] = $$"""{"entity":"user","entity_id":{{mid}}}""",
+            ["jsonp"] = "jsonp",
             ["statistics"] = """{"appId":100,"platform":5}""",
         };
 
-        using var content = new FormUrlEncodedContent(form);
-        using var req = new HttpRequestMessage(HttpMethod.Post, "https://api.bilibili.com/x/relation/modify")
+        const int maxAttempts = 2;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
-            Content = content,
-        };
-        req.Headers.Referrer = new Uri("https://www.bilibili.com/");
+            using var content = new FormUrlEncodedContent(form);
+            using var req = new HttpRequestMessage(HttpMethod.Post, "https://api.bilibili.com/x/relation/modify")
+            {
+                Content = content,
+            };
+            req.Headers.TryAddWithoutValidation("Origin", "https://www.bilibili.com");
+            req.Headers.Referrer = new Uri($"https://space.bilibili.com/{mid}/");
+            req.Headers.TryAddWithoutValidation("Accept", "application/json, text/plain, */*");
+            req.Headers.TryAddWithoutValidation("Accept-Language", "zh-CN,zh;q=0.9,en;q=0.8");
 
-        using var resp = await _http.SendAsync(req, cancellationToken);
-        var json = await resp.Content.ReadAsStringAsync(cancellationToken);
-        using var doc = JsonDocument.Parse(json);
-        EnsureCodeOk(doc.RootElement, "取消关注");
+            using var resp = await _http.SendAsync(req, cancellationToken);
+            var json = await resp.Content.ReadAsStringAsync(cancellationToken);
+            using var doc = JsonDocument.Parse(json);
+            var root = doc.RootElement;
+            var code = root.TryGetProperty("code", out var c) ? c.GetInt32() : -1;
+            if (code == 0)
+                return;
+
+            var msg = root.TryGetProperty("message", out var m) ? m.GetString() : null;
+
+            // -352 = risk control / fingerprint. Back off once then surface a clear error.
+            if (code == -352 && attempt < maxAttempts)
+            {
+                await Task.Delay(1500 + Random.Shared.Next(500, 1500), cancellationToken);
+                continue;
+            }
+
+            throw new InvalidOperationException(FormatApiError("取消关注", code, msg));
+        }
     }
 
     // ---------- helpers ----------
@@ -390,7 +458,26 @@ public sealed class BilibiliApiClient : IDisposable
         if (code == 0)
             return;
         var msg = root.TryGetProperty("message", out var m) ? m.GetString() : null;
-        throw new InvalidOperationException($"{action}失败：[{code}] {msg ?? "未知错误"}");
+        throw new InvalidOperationException(FormatApiError(action, code, msg));
+    }
+
+    /// <summary>Human-readable Bilibili API error (especially risk control codes).</summary>
+    public static string FormatApiError(string action, int code, string? message)
+    {
+        var detail = code switch
+        {
+            -101 => "账号未登录或 Cookie 已失效，请重新导入 cookies.txt。",
+            -111 => "csrf 校验失败（bili_jct 无效），请重新导出并导入完整 Cookie。",
+            -352 => "触发 B 站风控（-352）。请：① 在浏览器重新导出完整 cookies.txt 并导入；"
+                   + "② 放慢批量操作（每次间隔更长）；③ 稍后再试。",
+            -400 => "请求参数错误。",
+            -403 => "账号异常，无法操作。",
+            22001 or 22002 => "操作过于频繁，请稍后再试。",
+            _ => string.IsNullOrWhiteSpace(message) || message == code.ToString()
+                ? "未知错误"
+                : message,
+        };
+        return $"{action}失败：[{code}] {detail}";
     }
 
     private static string BuildMetaLine(long mid, string followedAt, string official)

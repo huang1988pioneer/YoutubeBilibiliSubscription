@@ -265,7 +265,7 @@
                 </StackPanel>
             </Border>
 
-            <!-- Confirm unsubscribe dialog -->
+            <!-- Confirm unsubscribe dialog (first) -->
             <Border IsVisible="{Binding IsConfirmUnsubscribeVisible}"
                     Background="#AA000000"
                     ZIndex="20">
@@ -289,6 +289,72 @@
                                     Command="{Binding CancelConfirmUnsubscribeCommand}" />
                             <Button Content="確定取消訂閱"
                                     Command="{Binding ConfirmUnsubscribeCommand}"
+                                    Classes="accent" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Border>
+
+            <!-- Confirm unsubscribe dialog (second — after select-all) -->
+            <Border IsVisible="{Binding IsConfirmUnsubscribeSecondVisible}"
+                    Background="#AA000000"
+                    ZIndex="21">
+                <Border Background="{DynamicResource SystemRegionBrush}"
+                        CornerRadius="12"
+                        Padding="24"
+                        MaxWidth="420"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        BorderBrush="#E53935"
+                        BorderThickness="2">
+                    <StackPanel Spacing="16">
+                        <TextBlock Text="二次確認 · 全選取消訂閱"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="#E53935" />
+                        <TextBlock Text="{Binding ConfirmSecondMessage}"
+                                   TextWrapping="Wrap"
+                                   LineHeight="22" />
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Right"
+                                    Spacing="8">
+                            <Button Content="返回"
+                                    Command="{Binding CancelConfirmUnsubscribeCommand}" />
+                            <Button Content="確定全部取消訂閱"
+                                    Command="{Binding ConfirmUnsubscribeSecondCommand}"
+                                    Classes="danger" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+            </Border>
+
+            <!-- Confirm open browser (after select-all) -->
+            <Border IsVisible="{Binding IsConfirmOpenBrowserVisible}"
+                    Background="#AA000000"
+                    ZIndex="22">
+                <Border Background="{DynamicResource SystemRegionBrush}"
+                        CornerRadius="12"
+                        Padding="24"
+                        MaxWidth="420"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        BorderBrush="#FB8C00"
+                        BorderThickness="2">
+                    <StackPanel Spacing="16">
+                        <TextBlock Text="二次確認 · 全選開啟瀏覽器"
+                                   FontSize="18"
+                                   FontWeight="SemiBold"
+                                   Foreground="#FB8C00" />
+                        <TextBlock Text="{Binding ConfirmOpenBrowserMessage}"
+                                   TextWrapping="Wrap"
+                                   LineHeight="22" />
+                        <StackPanel Orientation="Horizontal"
+                                    HorizontalAlignment="Right"
+                                    Spacing="8">
+                            <Button Content="返回"
+                                    Command="{Binding CancelConfirmOpenBrowserCommand}" />
+                            <Button Content="確定全部開啟"
+                                    Command="{Binding ConfirmOpenBrowserCommand}"
                                     Classes="accent" />
                         </StackPanel>
                     </StackPanel>

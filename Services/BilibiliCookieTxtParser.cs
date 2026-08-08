@@ -86,6 +86,19 @@ public static class BilibiliCookieTxtParser
                 + "请确认已登录 bilibili.com 后再导出 Cookie。");
         }
 
+        // Keep remaining cookies (buvid4, b_nut, sid, bili_ticket, …) for write APIs.
+        var known = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "SESSDATA", "bili_jct", "DedeUserID", "buvid3",
+        };
+        var extra = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (name, value) in map)
+        {
+            if (known.Contains(name) || string.IsNullOrWhiteSpace(value))
+                continue;
+            extra[name] = value.Trim();
+        }
+
         return new BilibiliCredential
         {
             SessData = sess.Trim(),
@@ -94,6 +107,7 @@ public static class BilibiliCookieTxtParser
             Buvid3 = string.IsNullOrWhiteSpace(buvid)
                 ? Guid.NewGuid().ToString("N") + "infoc"
                 : buvid.Trim(),
+            ExtraCookies = extra,
         };
     }
 
