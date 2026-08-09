@@ -360,7 +360,7 @@ public partial class MainViewModel : ViewModelBase
         }
         catch (Exception ex)
         {
-            StatusMessage = $"載入訂閱失敗：{ex.Message}";
+            StatusMessage = $"{YouTubeApiErrorFormatter.ForLoading(ex)} 若已有清單，會維持顯示。";
         }
     }
 
@@ -625,7 +625,7 @@ public partial class MainViewModel : ViewModelBase
                 }
                 catch (Exception ex)
                 {
-                    var friendly = FormatYouTubeError(ex);
+                    var friendly = YouTubeApiErrorFormatter.ForUnsubscribe(ex);
                     failed.Add($"{ch.Title}: {friendly}");
 
                     // Daily API quota exhausted — further deletes will also fail.
@@ -643,6 +643,12 @@ public partial class MainViewModel : ViewModelBase
             TotalCount = Math.Max(0, TotalCount - success);
             if (TotalCount < Channels.Count)
                 TotalCount = Channels.Count;
+
+            if (success > 0)
+            {
+                var mode = SelectedSortOption?.Mode ?? SubscriptionSortMode.Relevance;
+                await _subscriptions.UpdateCacheAsync(mode, Channels, TotalCount);
+            }
 
             ApplyFilter();
             RecalculateSelectedCount();

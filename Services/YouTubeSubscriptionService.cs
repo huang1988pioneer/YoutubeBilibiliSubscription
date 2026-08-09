@@ -24,6 +24,7 @@ public enum SubscriptionSortMode
 public sealed class YouTubeSubscriptionService
 {
     private readonly YouTubeService _youtube;
+    private readonly SubscriptionCache _cache = new();
 
     public YouTubeSubscriptionService(YouTubeService youtube)
     {
@@ -39,6 +40,13 @@ public sealed class YouTubeSubscriptionService
         IProgress<string>? progress = null,
         CancellationToken cancellationToken = default)
     {
+        var cached = await _cache.TryReadFreshAsync(sortMode, cancellationToken);
+        if (cached is not null)
+        {
+            progress?.Report($"已從快取載入 {cached.Value.Channels.Count} 個訂閱（15 分鐘內不重新查詢）。");
+            return cached.Value;
+        }
+
         var channels = new List<SubscriptionChannel>();
         long total = 0;
         string? pageToken = null;
@@ -99,10 +107,19 @@ public sealed class YouTubeSubscriptionService
         progress?.Report("正在取得頻道資訊（頭像、@handle、訂閱數）…");
         await EnrichChannelDetailsAsync(channels, cancellationToken);
 
+        await _cache.WriteAsync(sortMode, channels, total, clearOtherSorts: false, cancellationToken);
+
         // Keep exact API response order — do not re-sort client-side after fetch.
         // (Alphabetical is already applied by the API when requested.)
         return (channels, total);
     }
+
+    public Task UpdateCacheAsync(
+        SubscriptionSortMode sortMode,
+        IEnumerable<SubscriptionChannel> channels,
+        long totalCount,
+        CancellationToken cancellationToken = default) =>
+        _cache.WriteAsync(sortMode, channels, totalCount, clearOtherSorts: true, cancellationToken);
 
     public static SubscriptionsResource.ListRequest.OrderEnum ToApiOrder(SubscriptionSortMode mode) =>
         mode switch

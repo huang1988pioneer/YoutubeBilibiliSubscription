@@ -55,6 +55,7 @@ public sealed class YouTubeAuthService
 
         Directory.CreateDirectory(AppDataDirectory);
         File.Copy(path, PreferredSecretsPath, overwrite: true);
+        SubscriptionCache.ClearAll();
         _explicitSecretsPath = PreferredSecretsPath;
         SaveRememberedPath(PreferredSecretsPath);
     }
@@ -244,6 +245,7 @@ public sealed class YouTubeAuthService
         _credential = null;
         _service?.Dispose();
         _service = null;
+        SubscriptionCache.ClearAll();
 
         try
         {
