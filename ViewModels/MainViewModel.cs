@@ -647,7 +647,7 @@ public partial class MainViewModel : ViewModelBase
             if (success > 0)
             {
                 var mode = SelectedSortOption?.Mode ?? SubscriptionSortMode.Relevance;
-                await _subscriptions.UpdateCacheAsync(mode, Channels, TotalCount);
+                await _subscriptions!.UpdateCacheAsync(mode, Channels, TotalCount);
             }
 
             ApplyFilter();
