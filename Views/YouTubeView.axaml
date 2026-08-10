@@ -29,6 +29,10 @@
                     <TextBlock Text="{Binding SelectedCountText}"
                                FontSize="12"
                                Opacity="0.7" />
+                    <TextBlock Text="提醒：若實際訂閱頻道數超過 999 個，YouTube API 最多只會顯示 999 筆。"
+                               FontSize="12"
+                               Foreground="#C56A00"
+                               TextWrapping="Wrap" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="1"
