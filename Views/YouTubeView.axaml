@@ -50,6 +50,10 @@
                     <Button Content="重新整理"
                             Command="{Binding RefreshCommand}"
                             IsEnabled="{Binding IsAuthenticated}" />
+                    <Button Content="取消快取"
+                            Command="{Binding ClearCacheCommand}"
+                            IsEnabled="{Binding !IsBusy}"
+                            ToolTip.Tip="清除 YouTube 訂閱快取；已登入時會立即從 API 重新載入" />
                     <Button Content="登出"
                             Command="{Binding LogoutCommand}"
                             IsEnabled="{Binding IsAuthenticated}" />

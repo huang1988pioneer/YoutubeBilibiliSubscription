@@ -316,6 +316,32 @@ public partial class MainViewModel : ViewModelBase
         }
     }
 
+    [RelayCommand]
+    private async Task ClearCacheAsync()
+    {
+        if (IsBusy)
+            return;
+
+        SubscriptionCache.ClearAll();
+
+        if (!IsAuthenticated || _subscriptions is null)
+        {
+            StatusMessage = "YouTube 訂閱快取已清除。";
+            return;
+        }
+
+        IsBusy = true;
+        StatusMessage = "快取已清除，正在從 YouTube API 重新載入…";
+        try
+        {
+            await LoadSubscriptionsCoreAsync();
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
     private async Task LoadSubscriptionsCoreAsync()
     {
         if (_subscriptions is null)
