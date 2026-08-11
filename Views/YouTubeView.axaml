@@ -29,9 +29,14 @@
                     <TextBlock Text="{Binding SelectedCountText}"
                                FontSize="12"
                                Opacity="0.7" />
-                    <TextBlock Text="提醒：若實際訂閱頻道數超過 999 個，YouTube API 最多只會顯示 999 筆。"
+                    <TextBlock Text="提醒：若實際訂閱頻道數超過 999 個，單一 API 排序可能最多只顯示 999 筆；可按「探索更多」合併三種排序。"
                                FontSize="12"
                                Foreground="#C56A00"
+                               TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding DiscoverySummary}"
+                               IsVisible="{Binding HasDiscoverySummary}"
+                               FontSize="12"
+                               Opacity="0.8"
                                TextWrapping="Wrap" />
                 </StackPanel>
 
@@ -80,6 +85,10 @@
                             </DataTemplate>
                         </ComboBox.ItemTemplate>
                     </ComboBox>
+                    <Button Content="探索更多"
+                            Command="{Binding DiscoverMoreCommand}"
+                            IsEnabled="{Binding IsAuthenticated}"
+                            ToolTip.Tip="分別查詢三種 API 排序並依頻道 ID 去重合併，可能找到單一排序未顯示的訂閱" />
                 </StackPanel>
 
                 <TextBox Grid.Column="1"

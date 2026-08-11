@@ -42,6 +42,9 @@ public partial class MainViewModel : ViewModelBase
     public partial string FilterText { get; set; } = string.Empty;
 
     [ObservableProperty]
+    public partial string DiscoverySummary { get; set; } = string.Empty;
+
+    [ObservableProperty]
     public partial bool IsConfirmUnsubscribeVisible { get; set; }
 
     /// <summary>全選後取消訂閱的第二次確認（更強警告）。</summary>
@@ -85,6 +88,8 @@ public partial class MainViewModel : ViewModelBase
 
     public string SelectedCountText => $"已勾選：{SelectedCount}";
 
+    public bool HasDiscoverySummary => !string.IsNullOrWhiteSpace(DiscoverySummary);
+
     public MainViewModel() : this(new YouTubeAuthService(), new FileDialogService())
     {
     }
@@ -127,6 +132,9 @@ public partial class MainViewModel : ViewModelBase
         OnPropertyChanged(nameof(SelectedCountText));
 
     partial void OnFilterTextChanged(string value) => ApplyFilter();
+
+    partial void OnDiscoverySummaryChanged(string value) =>
+        OnPropertyChanged(nameof(HasDiscoverySummary));
 
     partial void OnSelectedSortOptionChanged(SortOptionItem? value)
     {
@@ -323,6 +331,7 @@ public partial class MainViewModel : ViewModelBase
             return;
 
         SubscriptionCache.ClearAll();
+        DiscoverySummary = string.Empty;
 
         if (!IsAuthenticated || _subscriptions is null)
         {
@@ -335,6 +344,48 @@ public partial class MainViewModel : ViewModelBase
         try
         {
             await LoadSubscriptionsCoreAsync();
+        }
+        finally
+        {
+            IsBusy = false;
+        }
+    }
+
+    [RelayCommand]
+    private async Task DiscoverMoreAsync()
+    {
+        if (!IsAuthenticated || _subscriptions is null || IsBusy)
+            return;
+
+        IsBusy = true;
+        _loadCts?.Cancel();
+        _loadCts = new CancellationTokenSource();
+        var token = _loadCts.Token;
+        var progress = new Progress<string>(message => StatusMessage = message);
+
+        try
+        {
+            var result = await _subscriptions.ListMergedSubscriptionsAsync(progress, token);
+
+            Channels.Clear();
+            foreach (var channel in result.Channels)
+                Channels.Add(channel);
+
+            TotalCount = Channels.Count;
+            DiscoverySummary =
+                $"探索結果：相關度 {result.RelevanceCount}、最新活動 {result.ActivityCount}、" +
+                $"名稱 A–Z {result.AlphabeticalCount}；去重後 {Channels.Count} 筆。";
+            ApplyFilter();
+            StatusMessage = $"已完成三種 API 排序探索，合併後取得 {Channels.Count} 個不重複頻道。";
+            _ = LoadThumbnailsAsync(result.Channels, token);
+        }
+        catch (OperationCanceledException)
+        {
+            StatusMessage = "探索已取消。";
+        }
+        catch (Exception ex)
+        {
+            StatusMessage = $"探索失敗：{YouTubeApiErrorFormatter.ForLoading(ex)}";
         }
         finally
         {
@@ -366,6 +417,7 @@ public partial class MainViewModel : ViewModelBase
                 Channels.Add(ch);
 
             TotalCount = total;
+            DiscoverySummary = string.Empty;
             ApplyFilter();
             StatusMessage = mode switch
             {

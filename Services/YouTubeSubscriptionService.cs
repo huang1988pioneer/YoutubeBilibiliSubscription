@@ -21,6 +21,12 @@ public enum SubscriptionSortMode
     Alphabetical = 2,
 }
 
+public sealed record MergedSubscriptionResult(
+    IReadOnlyList<SubscriptionChannel> Channels,
+    int RelevanceCount,
+    int ActivityCount,
+    int AlphabeticalCount);
+
 public sealed class YouTubeSubscriptionService
 {
     private readonly YouTubeService _youtube;
@@ -38,13 +44,17 @@ public sealed class YouTubeSubscriptionService
     public async Task<(IReadOnlyList<SubscriptionChannel> Channels, long TotalCount)> ListSubscriptionsAsync(
         SubscriptionSortMode sortMode = SubscriptionSortMode.Relevance,
         IProgress<string>? progress = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool bypassCache = false)
     {
-        var cached = await _cache.TryReadFreshAsync(sortMode, cancellationToken);
-        if (cached is not null)
+        if (!bypassCache)
         {
-            progress?.Report($"已從快取載入 {cached.Value.Channels.Count} 個訂閱（15 分鐘內不重新查詢）。");
-            return cached.Value;
+            var cached = await _cache.TryReadFreshAsync(sortMode, cancellationToken);
+            if (cached is not null)
+            {
+                progress?.Report($"已從快取載入 {cached.Value.Channels.Count} 個訂閱（15 分鐘內不重新查詢）。");
+                return cached.Value;
+            }
         }
 
         var channels = new List<SubscriptionChannel>();
@@ -112,6 +122,66 @@ public sealed class YouTubeSubscriptionService
         // Keep exact API response order — do not re-sort client-side after fetch.
         // (Alphabetical is already applied by the API when requested.)
         return (channels, total);
+    }
+
+    /// <summary>
+    /// Queries every ordering exposed by subscriptions.list and returns their
+    /// de-duplicated union. Different orderings can expose different windows
+    /// for accounts with very large subscription lists.
+    /// </summary>
+    public async Task<MergedSubscriptionResult> ListMergedSubscriptionsAsync(
+        IProgress<string>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        var modes = new[]
+        {
+            SubscriptionSortMode.Relevance,
+            SubscriptionSortMode.Activity,
+            SubscriptionSortMode.Alphabetical,
+        };
+        var labels = new Dictionary<SubscriptionSortMode, string>
+        {
+            [SubscriptionSortMode.Relevance] = "相關度",
+            [SubscriptionSortMode.Activity] = "最新活動",
+            [SubscriptionSortMode.Alphabetical] = "名稱 A–Z",
+        };
+        var counts = new Dictionary<SubscriptionSortMode, int>();
+        var merged = new Dictionary<string, SubscriptionChannel>(StringComparer.Ordinal);
+
+        foreach (var mode in modes)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var label = labels[mode];
+            progress?.Report($"正在探索「{label}」排序…");
+            var childProgress = new Progress<string>(message =>
+                progress?.Report($"{label}：{message}"));
+            var (channels, _) = await ListSubscriptionsAsync(
+                mode,
+                childProgress,
+                cancellationToken,
+                bypassCache: true);
+
+            counts[mode] = channels.Count;
+            foreach (var channel in channels)
+            {
+                var key = !string.IsNullOrWhiteSpace(channel.ChannelId)
+                    ? $"channel:{channel.ChannelId}"
+                    : $"subscription:{channel.SubscriptionId}";
+                merged.TryAdd(key, channel);
+            }
+
+            progress?.Report($"{label}取得 {channels.Count} 筆；目前聯集 {merged.Count} 筆。");
+        }
+
+        var result = merged.Values.ToList();
+        for (var index = 0; index < result.Count; index++)
+            result[index].SortIndex = index;
+
+        return new MergedSubscriptionResult(
+            result,
+            counts[SubscriptionSortMode.Relevance],
+            counts[SubscriptionSortMode.Activity],
+            counts[SubscriptionSortMode.Alphabetical]);
     }
 
     public Task UpdateCacheAsync(
