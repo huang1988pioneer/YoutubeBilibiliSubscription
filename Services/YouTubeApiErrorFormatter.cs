@@ -18,7 +18,7 @@ public static class YouTubeApiErrorFormatter
         return reason switch
         {
             "quotaExceeded" or "dailyLimitExceeded" =>
-                $"{operation}失敗：YouTube API 配額目前受限。請明天再試（配額於太平洋時間午夜重置），或檢查 Google Cloud 的配額。",
+                $"{operation}失敗：YouTube API 配額目前受限。請等到配額重置後再試（{YouTubeQuotaReset.TaipeiAnnotation()}），或檢查 Google Cloud 的配額。",
             "rateLimitExceeded" or "userRateLimitExceeded" =>
                 $"{operation}失敗：請求過於頻繁。請稍候一分鐘後再試。",
             "subscriptionForbidden" =>

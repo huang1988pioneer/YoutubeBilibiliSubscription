@@ -740,7 +740,7 @@ public partial class MainViewModel : ViewModelBase
                 StatusMessage =
                     $"成功 {success} 個，失敗/中止 {failed.Count} 條。\n" +
                     "YouTube Data API 每日配額已用盡（預設約 10,000 單位/天）。\n" +
-                    "取消訂閱每次約消耗 50 單位。請等到配額重置（太平洋時間午夜）後再試，" +
+                    $"取消訂閱每次約消耗 50 單位。請等到配額重置（{YouTubeQuotaReset.TaipeiAnnotation()}）後再試，" +
                     "或在 Google Cloud Console 申請提高配額。\n" +
                     string.Join("\n", failed.Take(3));
             }
