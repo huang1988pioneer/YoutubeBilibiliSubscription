@@ -26,6 +26,7 @@ public sealed class BilibiliApiClient : IDisposable
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36";
 
     private readonly CookieContainer _cookies = new();
+    private readonly Dictionary<string, string> _cookieMap = new(StringComparer.OrdinalIgnoreCase);
     private readonly HttpClient _http;
     private BilibiliCredential? _credential;
 
@@ -35,7 +36,8 @@ public sealed class BilibiliApiClient : IDisposable
         {
             CookieContainer = _cookies,
             AutomaticDecompression = DecompressionMethods.All,
-            UseCookies = true,
+            // CookieContainer cannot store SESSDATA (commas / %2C). Send a raw Cookie header instead.
+            UseCookies = false,
         };
         _http = new HttpClient(handler)
         {
@@ -61,8 +63,7 @@ public sealed class BilibiliApiClient : IDisposable
         _credential = credential;
 
         // Expire any previous cookies so re-import does not mix sessions.
-        foreach (Cookie c in _cookies.GetAllCookies())
-            c.Expired = true;
+        ClearCookieState();
 
         SetCookie("SESSDATA", credential.SessData);
         SetCookie("bili_jct", credential.BiliJct);
@@ -97,24 +98,42 @@ public sealed class BilibiliApiClient : IDisposable
 
     private void SetCookie(string name, string value)
     {
-        // Cookie values from Netscape export are often URL-encoded; CookieContainer expects raw.
-        var decoded = Uri.UnescapeDataString(value.Trim());
+        // Keep the exact wire value from cookies.txt. System.Net.Cookie rejects or
+        // silently drops SESSDATA because it contains commas / %2C — that used to
+        // make a valid cookies.txt look like -101 (not logged in).
+        var wireValue = value.Trim();
+        if (string.IsNullOrWhiteSpace(name) || string.IsNullOrWhiteSpace(wireValue))
+            return;
+
+        _cookieMap[name] = wireValue;
         try
         {
-            _cookies.Add(new Cookie(name, decoded, "/", ".bilibili.com"));
+            _cookies.Add(new Cookie(name, wireValue, "/", ".bilibili.com"));
         }
         catch
         {
-            // Some cookie values are invalid for System.Net.Cookie; fall back to raw string.
-            try
-            {
-                _cookies.Add(new Cookie(name, value.Trim(), "/", ".bilibili.com"));
-            }
-            catch
-            {
-                // ignore unparsable cookies
-            }
+            // Optional for CookieContainer / QR fallback. Auth uses the raw header.
         }
+
+        SyncCookieHeader();
+    }
+
+    private void SyncCookieHeader()
+    {
+        _http.DefaultRequestHeaders.Remove("Cookie");
+        if (_cookieMap.Count == 0)
+            return;
+
+        var header = string.Join("; ", _cookieMap.Select(kv => $"{kv.Key}={kv.Value}"));
+        _http.DefaultRequestHeaders.TryAddWithoutValidation("Cookie", header);
+    }
+
+    private void ClearCookieState()
+    {
+        foreach (Cookie c in _cookies.GetAllCookies())
+            c.Expired = true;
+        _cookieMap.Clear();
+        _http.DefaultRequestHeaders.Remove("Cookie");
     }
 
     public void ClearCredential()
@@ -122,9 +141,7 @@ public sealed class BilibiliApiClient : IDisposable
         _credential = null;
         CurrentMid = null;
         CurrentUserName = null;
-        // CookieContainer has no clear-all; recreate would need new HttpClient — overwrite with empty values.
-        foreach (Cookie c in _cookies.GetAllCookies())
-            c.Expired = true;
+        ClearCookieState();
         BilibiliCredentialStore.Clear();
     }
 
@@ -174,6 +191,7 @@ public sealed class BilibiliApiClient : IDisposable
 
         using var resp = await _http.GetAsync(url, cancellationToken);
         resp.EnsureSuccessStatusCode();
+        IngestSetCookieHeaders(resp);
         var json = await resp.Content.ReadAsStringAsync(cancellationToken);
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
@@ -535,22 +553,33 @@ public sealed class BilibiliApiClient : IDisposable
         return null;
     }
 
+    private void IngestSetCookieHeaders(HttpResponseMessage response)
+    {
+        if (!response.Headers.TryGetValues("Set-Cookie", out var values))
+            return;
+
+        foreach (var raw in values)
+        {
+            var pair = raw.Split(';', 2)[0];
+            var eq = pair.IndexOf('=');
+            if (eq <= 0)
+                continue;
+            var name = pair[..eq].Trim();
+            var value = pair[(eq + 1)..].Trim();
+            if (string.IsNullOrEmpty(name) || string.IsNullOrEmpty(value))
+                continue;
+            SetCookie(name, value);
+        }
+    }
+
     private BilibiliCredential? ExtractCredentialFromCookies()
     {
         try
         {
-            var all = _cookies.GetCookies(new Uri("https://www.bilibili.com"));
-            string? sess = null, jct = null, dede = null, buvid = null;
-            foreach (Cookie c in all)
-            {
-                switch (c.Name)
-                {
-                    case "SESSDATA": sess = c.Value; break;
-                    case "bili_jct": jct = c.Value; break;
-                    case "DedeUserID": dede = c.Value; break;
-                    case "buvid3": buvid = c.Value; break;
-                }
-            }
+            string? sess = GetMappedOrContainerCookie("SESSDATA");
+            string? jct = GetMappedOrContainerCookie("bili_jct");
+            string? dede = GetMappedOrContainerCookie("DedeUserID");
+            string? buvid = GetMappedOrContainerCookie("buvid3");
 
             if (string.IsNullOrWhiteSpace(sess) || string.IsNullOrWhiteSpace(jct))
                 return null;
@@ -562,6 +591,21 @@ public sealed class BilibiliApiClient : IDisposable
                 DedeUserId = dede ?? string.Empty,
                 Buvid3 = buvid ?? Guid.NewGuid().ToString("N") + "infoc",
             };
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private string? GetMappedOrContainerCookie(string name)
+    {
+        if (_cookieMap.TryGetValue(name, out var mapped) && !string.IsNullOrWhiteSpace(mapped))
+            return mapped;
+
+        try
+        {
+            return _cookies.GetCookies(new Uri("https://www.bilibili.com"))[name]?.Value;
         }
         catch
         {
