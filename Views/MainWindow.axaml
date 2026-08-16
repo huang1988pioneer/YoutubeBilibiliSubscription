@@ -1,0 +1,31 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:YoutubeSubscription.ViewModels"
+        xmlns:views="using:YoutubeSubscription.Views"
+        xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+        xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        mc:Ignorable="d" d:DesignWidth="1000" d:DesignHeight="720"
+        x:Class="YoutubeSubscription.Views.MainWindow"
+        x:DataType="vm:ShellViewModel"
+        Width="1040"
+        Height="740"
+        MinWidth="780"
+        MinHeight="520"
+        Icon="/Assets/avalonia-logo.ico"
+        Title="訂閱管理 · YouTube / B站">
+
+    <Design.DataContext>
+        <vm:ShellViewModel />
+    </Design.DataContext>
+
+    <TabControl SelectedIndex="{Binding SelectedTabIndex}"
+                Padding="0"
+                Margin="0">
+        <TabItem Header="YouTube">
+            <views:YouTubeView DataContext="{Binding YouTube}" />
+        </TabItem>
+        <TabItem Header="B站">
+            <views:BilibiliView DataContext="{Binding Bilibili}" />
+        </TabItem>
+    </TabControl>
+</Window>
