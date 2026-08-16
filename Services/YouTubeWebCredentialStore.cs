@@ -18,16 +18,17 @@ public sealed class YouTubeWebCredential
     {
         get
         {
-            var names = new HashSet<string>(
-                Cookies.Select(c => c.Name),
-                StringComparer.OrdinalIgnoreCase);
-            var hasSapisid = names.Contains("SAPISID")
-                             || names.Contains("__Secure-1PAPISID")
-                             || names.Contains("__Secure-3PAPISID");
-            var hasSession = names.Contains("SID") || names.Contains("LOGIN_INFO");
-            return hasSapisid && hasSession;
+            var sapisid = Find("SAPISID")
+                          ?? Find("__Secure-1PAPISID")
+                          ?? Find("__Secure-3PAPISID");
+            var session = Find("SID") ?? Find("LOGIN_INFO");
+            return IsWireCookieValue(sapisid) && IsWireCookieValue(session);
         }
     }
+
+    public static bool IsWireCookieValue(string? value) =>
+        !string.IsNullOrEmpty(value)
+        && value.All(static c => c is >= (char)0x20 and < (char)0x7F and not ';');
 
     public string? Find(string name) =>
         SelectPreferred(name, Cookies);

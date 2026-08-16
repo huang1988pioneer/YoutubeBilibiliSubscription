@@ -7,6 +7,9 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <RootNamespace>YoutubeSubscription</RootNamespace>
     <AssemblyName>YoutubeBilibiliSubscription</AssemblyName>
+    <Version>1.4.0</Version>
+    <InformationalVersion>1.4.0</InformationalVersion>
+    <ApplicationIcon>Assets/avalonia-logo.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>

@@ -256,9 +256,12 @@ public sealed class YouTubeWebClient : IDisposable
             return null;
 
         var map = _credential.ToHeaderMap();
-        return map.Count == 0
-            ? null
-            : string.Join("; ", map.Select(kv => $"{kv.Key}={kv.Value}"));
+        var parts = map
+            .Where(kv => YouTubeWebCredential.IsWireCookieValue(kv.Key)
+                         && YouTubeWebCredential.IsWireCookieValue(kv.Value))
+            .Select(kv => $"{kv.Key}={kv.Value}")
+            .ToList();
+        return parts.Count == 0 ? null : string.Join("; ", parts);
     }
 
     private string? BuildSapisidAuthorization()

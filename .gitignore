@@ -1,6 +1,7 @@
 ## Build
 bin/
 obj/
+releases/
 .vs/
 *.user
 *.suo

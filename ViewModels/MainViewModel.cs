@@ -226,12 +226,15 @@ public partial class MainViewModel : ViewModelBase
             return true;
 
         var stored = YouTubeWebCredentialStore.Load();
-        if (stored is not null)
+        if (stored?.LooksSignedIn == true)
         {
             _web.ApplyCredential(stored);
             HasWebSession = true;
             return true;
         }
+
+        if (stored is not null)
+            YouTubeWebCredentialStore.Clear();
 
         StatusMessage = "正在從 Chrome 讀取 YouTube 登入…";
         var chrome = ChromeYouTubeCookieReader.TryRead();

@@ -13,11 +13,17 @@ public static class ChromeYouTubeCookieReader
 {
     public static YouTubeWebCredential? TryRead()
     {
+        // yt-dlp already knows current Chrome crypto. Local AES decrypt often
+        // yields replacement characters that HttpClient rejects as non-ASCII.
+        var fromYtDlp = TryReadWithYtDlp();
+        if (fromYtDlp?.LooksSignedIn == true)
+            return fromYtDlp;
+
         try
         {
             var key = TryReadChromeKey();
             if (key is null)
-                return TryReadWithYtDlp();
+                return null;
 
             foreach (var profile in CandidateProfiles())
             {
@@ -28,10 +34,10 @@ public static class ChromeYouTubeCookieReader
         }
         catch
         {
-            // Fall through to yt-dlp.
+            // ignore
         }
 
-        return TryReadWithYtDlp();
+        return null;
     }
 
     private static IEnumerable<string> CandidateProfiles()
