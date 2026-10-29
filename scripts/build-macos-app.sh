@@ -1,10 +1,11 @@
 #!/bin/bash
 # 將本專案打包成 macOS 單一執行檔 .app
-#   用法：./scripts/build-macos-app.sh [osx-arm64|osx-x64]
-#   產出：dist/訂閱管理.app
+#   用法：./scripts/build-macos-app.sh [osx-arm64|osx-x64] [輸出.zip]
+#   產出：dist/訂閱管理.app（若給第二個參數，另外壓成 zip）
 set -euo pipefail
 
 RID="${1:-osx-arm64}"
+ZIP_OUT="${2:-}"
 APP_NAME="訂閱管理"
 EXEC_NAME="YoutubeBilibiliSubscription"
 BUNDLE_ID="com.feng33.youtubesubscription"
@@ -81,6 +82,11 @@ PLIST
 echo "==> 4/4 Ad-hoc 簽名"
 codesign --force --sign - --identifier "$BUNDLE_ID" --timestamp=none "$APP"
 codesign --verify --strict "$APP"
+
+if [ -n "$ZIP_OUT" ]; then
+  echo "==> 壓縮 $ZIP_OUT"
+  python3 "$ROOT/scripts/pack-app.py" "$APP" "$ZIP_OUT"
+fi
 
 echo ""
 echo "完成：$ROOT/$APP  ($(du -sh "$APP" | cut -f1))"
