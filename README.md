@@ -21,6 +21,20 @@ dotnet restore
 dotnet run
 ```
 
+## 打包 macOS 單一執行檔（.app）
+
+```bash
+./scripts/build-macos-app.sh              # Apple Silicon (osx-arm64)
+./scripts/build-macos-app.sh osx-x64      # Intel
+```
+
+產出 `dist/訂閱管理.app`：`Contents/MacOS/` 內只有一支自包含的單一執行檔
+（`PublishSingleFile` + `IncludeNativeLibrariesForSelfExtract`），圖示由
+`Assets/avalonia-logo.ico` 自動轉成 `.icns`，最後以 ad-hoc 簽名。
+
+> 未做 Apple 公證。複製到其他 Mac 首次開啟需右鍵 →「打開」，
+> 或執行 `xattr -dr com.apple.quarantine /Applications/訂閱管理.app`。
+
 ---
 
 ## YouTube 分頁

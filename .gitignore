@@ -1,6 +1,7 @@
 ## Build
 bin/
 obj/
+dist/
 releases/
 .vs/
 *.user
@@ -21,3 +22,6 @@ Bilibili/
 Thumbs.db
 .idea/
 *.DotSettings.user
+
+## Agent workspace (local memory, not part of the app)
+.workbuddy-ai/
